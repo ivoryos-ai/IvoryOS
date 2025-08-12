@@ -15,7 +15,12 @@
             };
         </script>
     {% endif %}
-
+        <div id="progress-warning" style="border: 1px solid #f5c2c7; background-color: #f8d7da; color: #842029; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; font-size: 0.95rem;">
+            ⚠️ <strong>Note:</strong> Real-time progress tracking in this demo is currently <strong>not working</strong>. The system may report busy if multiple runs are initiated.
+            <br>
+            Workflow will still work, results can be tracked via the <strong>Data</strong> tab.
+            <br>
+        </div>
     <div class="row">
         {% include 'components/run_panel.html' %}
         {% include 'components/progress_panel.html' %}
