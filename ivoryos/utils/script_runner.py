@@ -534,12 +534,12 @@ class ScriptRunner:
 
     async def _execute_repeat_batched(self, step: Dict, contexts: List[Dict[str, Any]], phase_id, step_index, section_name):
         """Execute repeat block for multiple samples."""
-        times = step["args"].get("times", 1)
+        times = step["args"].get("statement", 1)
 
         for i in range(times):
             # Add repeat index to all contexts
-            for context in contexts:
-                context["repeat_index"] = i
+            # for context in contexts:
+            #     context["repeat_index"] = i
 
             await self._execute_steps_batched(step["repeat_block"], contexts, phase_id=phase_id, step_index=step_index, section_name=section_name)
 

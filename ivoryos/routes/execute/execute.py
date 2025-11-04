@@ -185,24 +185,36 @@ def run_bo():
     """
     script = utils.get_script_file()
     run_name = script.name if script.name else "untitled"
-    payload = request.form.to_dict()
-    repeat = payload.pop("repeat", None)
-    optimizer_type = payload.pop("optimizer_type", None)
-    existing_data = payload.pop("existing_data", None)
-    batch_mode = payload.pop("batch_mode", None)
-    batch_size = payload.pop("batch_size", 1)
 
-    # Get constraint expressions (new single-line input)
-    constraint_exprs = request.form.getlist("constraint_expr")
-    constraints = [expr.strip() for expr in constraint_exprs if expr.strip()]
+    if request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json':
+        payload_json = request.get_json()
+        objectives = payload_json.pop("objectives", None)
+        parameters = payload_json.pop("parameters", None)
+        steps = payload_json.pop("steps", None)
+        constraints = payload_json.pop("parameter_constraints", None)
+        repeat = payload_json.pop("repeat", None)
+        batch_size = payload_json.pop("batch_size", None)
+        optimizer_type = payload_json.pop("optimizer_type", None)
+        existing_data = payload_json.pop("existing_data", None)
 
-    # Remove constraint_expr entries from payload before parsing parameters
-    for key in list(payload.keys()):
-        if key.startswith("constraint_expr"):
-            payload.pop(key, None)
+    else:
+        payload = request.form.to_dict()
+        repeat = payload.pop("repeat", None)
+        optimizer_type = payload.pop("optimizer_type", None)
+        existing_data = payload.pop("existing_data", None)
+        batch_mode = payload.pop("batch_mode", None)
+        batch_size = payload.pop("batch_size", 1)
 
-    parameters, objectives, steps = parse_optimization_form(payload)
-    try:
+        # Get constraint expressions (new single-line input)
+        constraint_exprs = request.form.getlist("constraint_expr")
+        constraints = [expr.strip() for expr in constraint_exprs if expr.strip()]
+
+        # Remove constraint_expr entries from payload before parsing parameters
+        for key in list(payload.keys()):
+            if key.startswith("constraint_expr"):
+                payload.pop(key, None)
+
+        parameters, objectives, steps = parse_optimization_form(payload)
 
     # if True:
         datapath = current_app.config["DATA_FOLDER"]
@@ -216,7 +228,7 @@ def run_bo():
         runner.run_script(script=script, run_name=run_name, optimizer=optimizer,
                           logger=g.logger, socketio=g.socketio, repeat_count=repeat,
                           output_path=datapath, compiled=False, history=existing_data,
-                          current_app=current_app._get_current_object(), batch_mode=batch_mode, batch_size=int(batch_size),
+                          current_app=current_app._get_current_object(), batch_size=int(batch_size),
                           objectives=objectives
                           )
 
