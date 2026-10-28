@@ -13,24 +13,18 @@ per public method, one field per argument. When the platform code changes, the p
 :width: 1440px
 ```
 
-1. **Instrument list.** Each instrument (Python object) on the platform. Pick one to see its
-   methods.
-2. **Search.** Filter the cards by method name.
-3. **Method card.** One per method. The fields come from the method's arguments: a red
-   asterisk marks a required argument, a default value is filled in already, and an `Enum`
-   or `Literal` argument offers its choices in a dropdown. The button at the bottom runs the
-   method. Drag a card to put it somewhere else on the page; the order is kept.
-4. **Safety limit.** The shield at the end of a field sets the range of values the
-   instrument may be given. See [Safety limits](#safety-limits).
-5. **Description.** Click to read the method's docstring.
-6. **Hide.** Moves a method you never use out of the way, into **Hidden functions**.
-7. **Hidden functions.** Lists the hidden methods; click the eye beside one to show it again.
-8. **Download proxy** and **New connection.** Download a Python file that calls these
-   instruments over the network (see [Remote instrument proxy](../integrators/remote-instrument-proxy.md)),
-   or connect an instrument that is not in the running script by creating it from one of the
-   Python classes IvoryOS can see.
-9. **Python console.** Run a few lines of Python against the instruments. See
-   [Python console](#python-console).
+1. **Instruments.** Pick one to see its methods.
+2. **A method.** One field per argument and a button that runs it. A red asterisk marks a
+   required field; defaults are filled in.
+3. **Safety limit** for that field. See [Safety limits](#safety-limits).
+4. **Hide** a method you never use. It moves to **Hidden functions** at the bottom of the page.
+5. **Python console.** See [Python console](#python-console).
+
+Also on this page: the search box above the cards, the **ⓘ** on each card for the method's
+description, and, under the instrument list, **Download proxy** (a Python file that calls these
+instruments over the network, see [Remote instrument proxy](../integrators/remote-instrument-proxy.md))
+and **New connection** (add an instrument that is not in the running script). Drag a card to
+reorder the page.
 
 ## Calling a method
 
@@ -60,7 +54,7 @@ Click the shield at the end of a numeric or text field to set its limit:
 
 ```{image} ../_static/screenshots/instruments-safety-limit.png
 :alt: The safety limit editor open under the temp field of the equilibrate method
-:width: 546px
+:width: 618px
 ```
 
 1. The shield of the field you are limiting.
@@ -73,7 +67,7 @@ reaches the instrument:
 
 ```{image} ../_static/screenshots/instruments-limit-blocked.png
 :alt: A call with temp = 120 refused because the limit is 20 to 80 °C
-:width: 1344px
+:width: 1416px
 ```
 
 1. The call is refused, with the limit it broke.
@@ -97,7 +91,7 @@ enough: chaining two calls, checking an attribute, or printing a value.
 
 ```{image} ../_static/screenshots/instruments-console.png
 :alt: The interactive console with two lines of Python and their output
-:width: 407px
+:width: 447px
 ```
 
 1. Python code. Every instrument is available by its name, here `sdl`, `balance` and `pump`.

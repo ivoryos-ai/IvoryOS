@@ -71,13 +71,13 @@ When a step raises an error, including a value refused by a
 :width: 1440px
 ```
 
-1. The error the step raised.
-2. **Rerun Current Step** tries the failed step again, for example after fixing a jammed
-   vial or reconnecting a cable.
-3. **Continue** carries on with the next step, leaving the failed one as it is.
-4. **Stop Execution** stops the run, skips cleanup, and pauses the queue.
-5. The status turns to **Error** on every page. If you close the dialog or move to another
-   page, click it to bring the dialog back.
+1. Choose what happens next:
+   - **Rerun Current Step** tries the failed step again, for example after fixing a jammed
+     vial or reconnecting a cable.
+   - **Continue** carries on with the next step, leaving the failed one as it is.
+   - **Stop Execution** stops the run, skips cleanup, and pauses the queue.
+2. The status shows **Error** on every page. If you close the dialog, click it to bring the
+   dialog back.
 
 A common cause is a workflow that no longer matches the deck, because the deck was edited after the workflow was saved. The execution page warns about those steps before you start a run. See [Workflow step warnings](deck-compatibility.md) for what each warning means.
 
@@ -97,7 +97,7 @@ Both stop buttons ask how the run should wind down:
 
 ```{image} ../_static/screenshots/execute-stop.png
 :alt: The Stop Workflow dialog with its two checkboxes
-:width: 532px
+:width: 548px
 ```
 
 1. **Proceed to cleanup steps**: tick it to run the **Clean up** phase before stopping, for

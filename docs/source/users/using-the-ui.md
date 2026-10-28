@@ -17,7 +17,7 @@ python community/examples/abstract_sdl_example/abstract_sdl.py
 Then open <http://127.0.0.1:8000/ivoryos> and sign in. A new installation has an `admin`
 account with the password `admin`; change it from the account menu.
 
-Numbered orange markers on a screenshot point at what the list below it describes.
+Numbered markers on a screenshot point at what the list below it describes.
 
 ## The main screen
 
@@ -26,22 +26,18 @@ Numbered orange markers on a screenshot point at what the list below it describe
 :width: 1440px
 ```
 
-The navigation bar follows the usual order of work, left to right:
-
-1. **[Library](library.md)**: saved workflows, ready to open.
-2. **[Workflow](workflow-designer.md)**: the designer, where actions are put in order.
-3. **[Execution](execution.md)**: set up a run, start it, and follow it.
-4. **[Data](data.md)**: the record of every run, with downloads.
-5. **[Instruments](instruments.md)**: call any instrument method directly, set safety
-   limits, and open the Python console.
-6. **Account menu**: change your password, customize the logo, or log out.
-7. **Status**, in the corner of every page: **Idle**, **Running**, **Paused**, **Error**, or
+1. **The main pages**, in the usual order of work:
+   - **[Library](library.md)**: saved workflows, ready to open.
+   - **[Workflow](workflow-designer.md)**: the designer, where actions are put in order.
+   - **[Execution](execution.md)**: set up a run, start it, and follow it.
+   - **[Data](data.md)**: the record of every run, with downloads.
+   - **[Instruments](instruments.md)**: call any instrument method directly, set safety
+     limits, and open the Python console.
+2. **Account menu**: change your password, customize the logo, or log out.
+3. **Status**, in the corner of every page: **Idle**, **Running**, **Paused**, **Error**, or
    **Input** when a run is waiting for an answer. Click it when it says **Error** or **Input**
    to bring back the dialog that is waiting for you.
-8. **Workflow tips**: a short guide to building workflows.
-
-The home page also lists the most recently changed workflows, with a button to open each one
-in the designer.
+4. **Recently changed workflows**, each with a button to open it in the designer.
 
 ## A typical session
 

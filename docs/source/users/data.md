@@ -11,13 +11,10 @@ early or failed still has one.
 :width: 1440px
 ```
 
-1. **Search** runs by name or by the user who submitted them.
-2. **The run's name.** Click it to open the run.
-3. **Submitted By**: who started the run. Click a column name to sort by it. Runs from before
-   this was recorded show `-`.
-4. **Download CSV** of the run's results: one row per sample, with its inputs and saved
-   values.
-5. **View Logs** opens the run, like its name.
+1. **Search** runs by name or by who submitted them.
+2. **A run.** Click its name (or **View Logs**) to open it.
+3. **Submitted By**: who started the run. Click a column name to sort by it.
+4. **Download CSV** of the run's results: one row per sample, with its inputs and saved values.
 
 ## One run
 
@@ -28,12 +25,11 @@ The top of a run's page shows how it went:
 :width: 1440px
 ```
 
-1. The run's number, name and how it ended.
-2. Who submitted it.
-3. **Timeline** of the phases and iterations. Click one to jump to its details further
+1. Who submitted the run. Its number, name and how it ended are in the title above.
+2. **Timeline** of the phases and iterations. Click one to jump to its details further
    down; Ctrl + scroll zooms.
-4. **Config table results**, for a run from a parameter table: every row of the table, its
-   status, the values it ran with, and what it saved.
+3. **Config table results**: every row of the parameter table, its status, the values it ran
+   with, and what it saved.
 
 Further down are a plot of any recorded value, the downloads, and the details of each phase:
 
@@ -42,9 +38,8 @@ Further down are a plot of any recorded value, the downloads, and the details of
 :width: 1440px
 ```
 
-1. **The value to plot**, across the run's iterations.
-2. **The plot.** Hover a point to read it.
-3. **Downloads**: **workflow data** (the results CSV), **workflow steps** (every step with its
+1. **The value to plot** across the run's iterations. Hover a point to read it.
+2. **Downloads**: **workflow data** (the results CSV), **workflow steps** (every step with its
    inputs, outputs and times), and **logs** (everything logged during this run).
 
 Below them, a card for each phase and iteration lists its steps with their start and end

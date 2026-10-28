@@ -17,23 +17,17 @@ action by its handle onto the canvas.
 :width: 1440px
 ```
 
-1. **Search** every action in the toolbox at once.
-2. **Auto #** fills every field of a newly opened action with a `#name` input of the same
-   name, for workflows where most values are set per run. **Fold** closes every group.
-3. **Groups.** Flow control, then one group per instrument, then registered workflows. Click
-   a group's name to fold it; the count beside it says how many actions it holds.
-4. **A value for each argument.** Type a fixed value, or `#name` to make it an input you set
-   when the workflow runs. Here `#temp_c` makes the temperature a run input. Saved values
-   from earlier steps are suggested as you type, and a field with a
-   [safety limit](instruments.md#safety-limits) shows it underneath (`°C · 20 to 80`).
-5. **Save value as** names what the action returns, so later steps can use it as `#name` and
-   the run records it. An action that returns a fixed-size tuple gets one field per item.
-6. **Add** puts the action at the end of the current phase.
-7. **The canvas** shows the steps of the phase you are editing, in the order they run.
+1. **A value for each argument.** Type a fixed value, or `#name` to make it an input you fill
+   in when the workflow runs. Here `#temp_c` makes the temperature a run input. A
+   [safety limit](instruments.md#safety-limits) on the field is shown under it.
+2. **Save value as** names what the action returns, so later steps can use it as `#name` and
+   the run records it.
+3. **The steps** of the phase you are editing, in the order they run.
 
-**Run once per batch** matters when the workflow runs with a batch size above 1: tick it for
-a step that should run once for the whole batch rather than once per sample (homing a robot,
-for example).
+Above the toolbox, **Search** finds an action in any group, **Auto #** fills every field of
+a newly opened action with a `#name` input, and **Fold** closes every group. **Run once per
+batch** is for runs with a batch size above 1: tick it for a step that should run once for the
+whole batch rather than once per sample, such as homing a robot.
 
 ### Flow control
 
@@ -60,24 +54,21 @@ for example).
 :width: 1440px
 ```
 
-1. **Toolbox.** Instruments, flow control and registered workflows (see above).
-2. **Phases.** Every workflow has three: **Prep** runs once before the experiment,
-   **Experiment** is the part that repeats, and **Clean up** runs once at the end. Click a tab
-   to edit that phase. See [Run behavior](run-behavior.md).
-3. **A step.** Click it to change its values. Drag it up or down to reorder.
-4. **Step buttons.** The eye switches a step off without deleting it (it is shown struck
-   through and skipped when the workflow runs), then **Duplicate** and **Delete**.
-5. **New** and **Save As.** Start an empty workflow, or save this one under a name. Saving
-   with **Register this workflow** ticked makes it available in the toolbox's **Workflows**
-   group, so other workflows can use it as a single step.
-6. **Undo, redo and history.** See [Undo and history](#undo-and-history).
-7. **More.** **Import** and **Export** a workflow as JSON, **Import Python** to turn a Python
-   function into a workflow, **Rename**, **Save**, and **Disable editing** to lock a workflow
-   so it can only be saved under a new name.
-8. **Preview code.** Shows the Python the workflow compiles to. See
-   [Previewing the code](#previewing-the-code).
-9. **Quick Save** and **Prepare Run.** Save under the current name, and open the
-   **Execution** page with this workflow. Neither starts the workflow.
+1. **Toolbox**: instruments, flow control and registered workflows.
+2. **Phases.** **Prep** runs once before the experiment, **Experiment** is the part that
+   repeats, and **Clean up** runs once at the end. See [Run behavior](run-behavior.md).
+3. **A step.** Click it to change its values; drag it to reorder.
+4. **Switch off** (the eye), **Duplicate** and **Delete** the step. A switched-off step is
+   struck through and skipped.
+5. **Toolbar**: **New**, **Save As**, [undo and history](#undo-and-history), and **More**
+   (import and export, rename, lock).
+6. **Quick Save**, and **Prepare Run** to open the **Execution** page. Neither starts the
+   workflow.
+
+Ticking **Register this workflow** in **Save As** adds it to the toolbox's **Workflows** group,
+so other workflows can use it as a single step. **More** also has **Import Python**, to turn a
+Python function into a workflow, and **Disable editing**, after which the workflow can only be
+saved under a new name.
 
 ## Undo and history
 
@@ -88,13 +79,12 @@ it never brings back a different workflow.
 
 ```{image} ../_static/screenshots/design-history.png
 :alt: The history menu open, listing each change to the workflow
-:width: 336px
+:width: 408px
 ```
 
-1. **Undo** the last change.
-2. **Redo** what was undone.
-3. **History** lists every change with its time.
-4. Pick one to go straight back, or forward, to it. The tick marks where you are now.
+1. **Undo** and **Redo**.
+2. **History** lists every change with its time.
+3. Pick one to go straight back, or forward, to it. The tick marks where you are now.
 
 | Action | Windows and Linux | macOS |
 |---|---|---|
@@ -115,11 +105,11 @@ beside the canvas.
 ```
 
 1. **Preview code** opens and closes the panel.
-2. **Single** shows the code for one sample at a time; **Batch** shows it for a batch of
-   samples, with **Run once per batch** steps run once.
-3. Each phase is a function. The `#name` inputs are its arguments, and the **Save value as**
-   names are what it returns.
-4. **Copy** or **Download** the code to run or share outside IvoryOS.
+2. **Single** or **Batch**: the code for one sample at a time, or for a batch.
+3. **Copy** or **Download** the code to run or share outside IvoryOS.
+
+Each phase is a function: the `#name` inputs are its arguments, and the **Save value as** names
+are what it returns.
 
 If a step is marked with a red or yellow icon, the platform has changed since the step was
 added. See [Workflow step warnings](deck-compatibility.md).

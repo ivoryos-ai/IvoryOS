@@ -77,57 +77,84 @@ import ivoryos
 ivoryos.run("abstract_sdl", port={port}, debug=False, logger=["logger_name", "balance", "pump"])
 """
 
-ACCENT = "#e8590c"
+# A muted navy: calm, and apart from the UI's own teal so markers read as notes, not controls
+ACCENT = "#1f3a68"
 
-# Draws the markers: an outline around each target and a numbered badge on one of its corners.
-# Fixed positioning against the viewport, so screenshots are taken without scrolling after it.
+# Draws the markers on an SVG layer: a numbered badge beside each target with a short arrow to
+# it, or, for an area, a thin outline with the badge on its corner. Fixed positioning against
+# the viewport, so screenshots are taken without scrolling after it.
 ANNOTATE_JS = """
 ({marks, accent}) => {
     document.querySelectorAll('.ivy-doc-mark').forEach(e => e.remove());
-    const layer = document.createElement('div');
-    layer.className = 'ivy-doc-mark';
-    layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = window.innerWidth, H = window.innerHeight, R = 12;
+    const make = (tag, attrs, parent) => {
+        const el = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+        parent.appendChild(el);
+        return el;
+    };
+    const svg = make('svg', {class: 'ivy-doc-mark', width: W, height: H,
+        style: 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;overflow:visible'}, document.body);
+    const defs = make('defs', {}, svg);
+    const head = make('marker', {id: 'ivy-head', viewBox: '0 0 10 10', refX: 7, refY: 5,
+        markerWidth: 6, markerHeight: 6, orient: 'auto'}, defs);
+    make('path', {d: 'M0,0 L10,5 L0,10 z', fill: accent}, head);
+    const shadow = make('filter', {id: 'ivy-shadow', x: '-50%', y: '-50%', width: '200%', height: '200%'}, defs);
+    make('feDropShadow', {dx: 0, dy: 1, stdDeviation: 1.2, 'flood-opacity': 0.3}, shadow);
+    const dirs = {r: [1, 0], l: [-1, 0], t: [0, -1], b: [0, 1],
+        tr: [0.7071, -0.7071], tl: [-0.7071, -0.7071], br: [0.7071, 0.7071], bl: [-0.7071, 0.7071]};
     for (const m of marks) {
-        const pad = m.pad;
-        const x = m.box.x - pad, y = m.box.y - pad, w = m.box.width + 2 * pad, h = m.box.height + 2 * pad;
+        const x = m.box.x - m.pad, y = m.box.y - m.pad;
+        const w = m.box.width + 2 * m.pad, h = m.box.height + 2 * m.pad;
+        const spots = {r: [x + w, y + h / 2], l: [x, y + h / 2], t: [x + w / 2, y], b: [x + w / 2, y + h],
+            tr: [x + w, y], tl: [x, y], br: [x + w, y + h], bl: [x, y + h]};
         if (m.outline) {
-            const box = document.createElement('div');
-            box.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;` +
-                `border:2.5px solid ${accent};border-radius:8px;box-shadow:0 0 0 3px rgba(232,89,12,.18);`;
-            layer.appendChild(box);
+            make('rect', {x, y, width: w, height: h, rx: 8, fill: 'none', stroke: '#fff',
+                'stroke-width': 4, 'stroke-opacity': 0.7}, svg);
+            make('rect', {x, y, width: w, height: h, rx: 8, fill: 'none', stroke: accent,
+                'stroke-width': 2}, svg);
         }
-        const size = 26;
-        const spots = {
-            tl: [x, y], tr: [x + w, y], bl: [x, y + h], br: [x + w, y + h],
-            l: [x, y + h / 2], r: [x + w, y + h / 2], t: [x + w / 2, y], b: [x + w / 2, y + h],
-        };
-        let [cx, cy] = spots[m.at];
-        cx += m.dx; cy += m.dy;
-        cx = Math.min(Math.max(cx, size / 2 + 2), window.innerWidth - size / 2 - 2);
-        cy = Math.min(Math.max(cy, size / 2 + 2), window.innerHeight - size / 2 - 2);
-        const badge = document.createElement('div');
-        badge.textContent = m.label;
-        badge.style.cssText = `position:absolute;left:${cx - size / 2}px;top:${cy - size / 2}px;` +
-            `width:${size}px;height:${size}px;border-radius:50%;background:${accent};color:#fff;` +
-            `font:700 14px/26px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;` +
-            `border:2px solid #fff;box-sizing:content-box;box-shadow:0 2px 6px rgba(0,0,0,.35);`;
-        layer.appendChild(badge);
+        const [ax, ay] = spots[m.at];
+        let cx = ax + m.dx, cy = ay + m.dy;
+        if (m.arrow) {
+            cx += dirs[m.at][0] * m.dist;
+            cy += dirs[m.at][1] * m.dist;
+        }
+        cx = Math.min(Math.max(cx, R + 3), W - R - 3);
+        cy = Math.min(Math.max(cy, R + 3), H - R - 3);
+        if (m.arrow) {
+            const vx = ax - cx, vy = ay - cy, len = Math.hypot(vx, vy) || 1;
+            const line = {x1: cx + vx / len * (R + 3), y1: cy + vy / len * (R + 3),
+                x2: ax - vx / len * 3, y2: ay - vy / len * 3, 'stroke-linecap': 'round'};
+            make('line', {...line, stroke: '#fff', 'stroke-width': 5, 'stroke-opacity': 0.8}, svg);
+            make('line', {...line, stroke: accent, 'stroke-width': 2, 'marker-end': 'url(#ivy-head)'}, svg);
+        }
+        make('circle', {cx, cy, r: R, fill: accent, stroke: '#fff', 'stroke-width': 2,
+            filter: 'url(#ivy-shadow)'}, svg);
+        const text = make('text', {x: cx, y: cy + 4.5, 'text-anchor': 'middle', fill: '#fff',
+            style: 'font: 700 13px system-ui, -apple-system, "Segoe UI", sans-serif'}, svg);
+        text.textContent = m.label;
     }
-    document.body.appendChild(layer);
 }
 """
 
 
 class Mark:
-    """One numbered marker: what it points at and where its badge sits on that target.
+    """One numbered marker.
 
     ``target`` is a selector, a locator, a box (``{x, y, width, height}``), or a list of them
-    outlined together as one.
+    taken together. By default the badge sits ``dist`` pixels off the ``at`` side of the target
+    (``l``, ``r``, ``t``, ``b`` or a corner such as ``tr``) with an arrow to it. With
+    ``outline=True``, for an area rather than a control, the target is outlined and the badge
+    sits on its ``at`` corner or edge instead.
     """
 
-    def __init__(self, target, label, at="tl", pad=4, outline=True, dx=0, dy=0, nth=0):
-        self.target, self.label, self.at = target, str(label), at
-        self.pad, self.outline, self.dx, self.dy, self.nth = pad, outline, dx, dy, nth
+    def __init__(self, target, label, at="r", dist=44, outline=False, pad=None, dx=0, dy=0, nth=0):
+        self.target, self.label, self.at, self.dist = target, str(label), at, dist
+        self.outline, self.arrow = outline, not outline
+        self.pad = (6 if outline else 2) if pad is None else pad
+        self.dx, self.dy, self.nth = dx, dy, nth
 
 
 def free_port():
@@ -218,8 +245,8 @@ class Capture:
             found = [t if isinstance(t, dict) else self.locate(t, m.nth).bounding_box() for t in targets]
             if None in found:
                 raise RuntimeError(f"{name}: marker {m.label} target is not visible: {m.target}")
-            boxes.append({"box": union(found), "label": m.label, "at": m.at, "pad": m.pad,
-                          "outline": m.outline, "dx": m.dx, "dy": m.dy})
+            boxes.append({"box": union(found), "label": m.label, "at": m.at, "pad": m.pad, "dist": m.dist,
+                          "outline": m.outline, "arrow": m.arrow, "dx": m.dx, "dy": m.dy})
         page.evaluate(ANNOTATE_JS, {"marks": boxes, "accent": ACCENT})
         if clip is not None and not isinstance(clip, dict):
             clip = self.locate(clip).bounding_box()
@@ -396,17 +423,13 @@ def instruments(cap):
     """users/instruments.md"""
     page = cap.page
     cap.go("/instruments/deck.sdl")
-    card = page.locator(".draggable-method-card#analyze")
+    card = page.locator(".draggable-method-card#dose_solid")
     cap.shot("instruments-overview", [
-        Mark("nav .list-group", 1, at="tl"),
-        Mark("#methodSearch", 2, at="tl"),
-        Mark(card, 3, at="bl", pad=6),
-        Mark(card.locator(".guard-shield").first, 4, at="r", pad=2, dx=18),
-        Mark(card.locator(".bi-info-circle").first, 5, at="r", pad=3, dx=18),
-        Mark(card.locator(".bi-eye-slash-fill").first, 6, at="l", pad=3, dx=-18),
-        Mark("text=Hidden functions", 7, at="l", pad=8),
-        Mark("nav .mb-4:has(a:has-text('Download proxy'))", 8, at="tl"),
-        Mark("[data-bs-target='#consoleOffcanvas']", 9, at="tl", pad=2),
+        Mark("nav .list-group", 1, at="tl", outline=True),
+        Mark(card, 2, at="bl", outline=True),
+        Mark(card.locator(".guard-shield").first, 3, at="r"),
+        Mark(card.locator(".bi-eye-slash-fill").first, 4, at="r"),
+        Mark("[data-bs-target='#consoleOffcanvas']", 5, at="l"),
     ])
 
     # call a method from its card
@@ -418,9 +441,9 @@ def instruments(cap):
     flash.wait_for()
     page.wait_for_timeout(300)
     cap.shot("instruments-call", [
-        Mark(analyze.locator(".input-group").first, 1, at="tl"),
-        Mark(analyze.locator("button[type=submit]"), 2, at="tl"),
-        Mark(flash, 3, at="tl"),
+        Mark(analyze.locator(".input-group").first, 1, at="l"),
+        Mark(analyze.locator("button[type=submit]"), 2, at="l"),
+        Mark(flash, 3, at="tl", outline=True, pad=2),
     ], clip=region(flash, analyze, page=page))
 
     # a safety limit on the equilibrate temperature
@@ -434,10 +457,10 @@ def instruments(cap):
     inputs.nth(2).fill("°C")
     page.locator("body").click(position={"x": 5, "y": 300})  # out of the field, the editor stays
     cap.shot("instruments-safety-limit", [
-        Mark(equilibrate.locator(".guard-shield[data-param='temp']"), 1, at="tr", pad=2),
-        Mark(editor.locator(".row").first, 2, at="tl"),
-        Mark(editor.locator("button", has_text="Save"), 3, at="br", pad=3),
-    ], clip=region(equilibrate, page=page))
+        Mark(equilibrate.locator(".guard-shield[data-param='temp']"), 1, at="r"),
+        Mark(editor.locator(".row").first, 2, at="r"),
+        Mark(editor.locator("button", has_text="Save"), 3, at="r"),
+    ], clip=region(equilibrate, page=page, pad=60))
     editor.locator("button", has_text="Save").click()
     page.wait_for_timeout(600)
 
@@ -449,9 +472,9 @@ def instruments(cap):
     flash.wait_for()
     page.wait_for_timeout(300)
     cap.shot("instruments-limit-blocked", [
-        Mark(flash, 1, at="tl"),
-        Mark(equilibrate.locator(".guard-shield.is-set"), 2, at="tr", pad=2),
-    ], clip=region(flash, equilibrate, page=page))
+        Mark(flash, 1, at="tl", outline=True, pad=2),
+        Mark(equilibrate.locator(".guard-shield.is-set"), 2, at="r"),
+    ], clip=region(flash, equilibrate, page=page, pad=60))
 
     # the Python console
     page.locator("[data-bs-target='#consoleOffcanvas']").click()
@@ -464,10 +487,10 @@ def instruments(cap):
     output = page.locator("#consoleOutput").bounding_box()
     output_top = dict(output, height=110)
     cap.shot("instruments-console", [
-        Mark(console.locator(".CodeMirror"), 1, at="tl"),
-        Mark("#consoleExecuteBtn", 2, at="tl"),
-        Mark(output_top, 3, at="tl"),
-    ], clip=region(console.locator(".offcanvas-body label").first, output_top, page=page))
+        Mark(console.locator(".CodeMirror"), 1, at="l"),
+        Mark("#consoleExecuteBtn", 2, at="l"),
+        Mark(output_top, 3, at="l"),
+    ], clip=region(console.locator(".offcanvas-body label").first, output_top, page=page, pad=64))
     page.keyboard.press("Escape")
     page.wait_for_timeout(500)
 
@@ -488,13 +511,9 @@ def designer(cap):
     form = fill_action(page, "deck.sdl", "equilibrate", {"temp": "#temp_c", "duration": "10"})
     form.locator("[name='temp']").focus()
     cap.shot("design-add-action", [
-        Mark(".toolbox-search", 1, at="tl", pad=2),
-        Mark("#autoFillToggle", 2, at="t", pad=2),
-        Mark(".toolbox-divider[data-group='deck.sdl']", 3, at="l", pad=2, dx=-16),
-        Mark(form.locator("[name='temp']"), 4, at="tr", pad=3),
-        Mark(form.locator("[name='return']"), 5, at="tr", pad=3),
-        Mark(form.locator("button[type=submit]"), 6, at="br", pad=3),
-        Mark("#list li", 7, at="tl", pad=4),
+        Mark(form.locator("[name='temp']"), 1, at="r"),
+        Mark(form.locator("[name='return']"), 2, at="r"),
+        Mark("#list", 3, at="tl", outline=True),
     ])
     with page.expect_response(lambda r: "/draft/instruments/" in r.url):
         form.locator("button[type=submit]").click()
@@ -510,15 +529,12 @@ def designer(cap):
     cap.go("/draft")  # without the "saved" notice
     steps = page.locator("#list li")
     cap.shot("design-overview", [
-        Mark(".toolbox", 1, at="tl", pad=6),
-        Mark(".nav-tabs:has(.nav-link:text('Prep'))", 2, at="tl"),
-        Mark(steps.nth(0).locator("a"), 3, at="tl", pad=3),
-        Mark([steps.nth(0).locator("button").first, steps.nth(0).locator("button").last], 4, at="tr", pad=3),
-        Mark(["button:has-text('New')", "button:has-text('Save As')"], 5, at="tl"),
-        Mark(".draft-history-controls", 6, at="tl"),
-        Mark("button:has-text('More')", 7, at="tr"),
-        Mark(".form-switch:has(#showPythonCodeSwitch)", 8, at="tl"),
-        Mark(["a:has-text('Quick Save')", "a:has-text('Prepare Run')"], 9, at="tr"),
+        Mark(".toolbox", 1, at="tl", outline=True),
+        Mark(".nav-tabs:has(.nav-link:text('Prep'))", 2, at="r"),
+        Mark(steps.last.locator("a"), 3, at="b"),
+        Mark([steps.last.locator("button").first, steps.last.locator("button").last], 4, at="b"),
+        Mark(["button:has-text('New')", "button:has-text('More')"], 5, at="l"),
+        Mark(["a:has-text('Quick Save')", "a:has-text('Prepare Run')"], 6, at="t"),
     ])
 
     page.locator("#draftHistoryButton").click()
@@ -526,21 +542,19 @@ def designer(cap):
     menu.wait_for()
     page.wait_for_timeout(500)
     cap.shot("design-history", [
-        Mark("#draftUndoButton", 1, at="tl", pad=2),
-        Mark("#draftRedoButton", 2, at="t", pad=2),
-        Mark("#draftHistoryButton", 3, at="tr", pad=2),
-        Mark(menu.locator("li").nth(1), 4, at="l", pad=0),
-    ], clip=region(".draft-history-controls", menu, "button:has-text('New')", page=page, pad=24))
+        Mark(["#draftUndoButton", "#draftRedoButton"], 1, at="t"),
+        Mark("#draftHistoryButton", 2, at="tr"),
+        Mark(menu.locator("li").nth(1), 3, at="l"),
+    ], clip=region(".draft-history-controls", menu, "button:has-text('New')", page=page, pad=60))
     page.keyboard.press("Escape")
 
     page.locator("#showPythonCodeSwitch").check()
     page.wait_for_function("document.getElementById('python-code').textContent.includes('def ')")
     page.wait_for_timeout(500)
     cap.shot("design-code-preview", [
-        Mark(".form-switch:has(#showPythonCodeSwitch)", 1, at="tl"),
-        Mark(".mode-toggle[data-mode='single']", 2, at="tl"),
-        Mark("#python-code", 3, at="tl"),
-        Mark("#copy-code", 4, at="bl"),
+        Mark("#showPythonCodeSwitch", 1, at="b"),
+        Mark([".mode-toggle[data-mode='single']", ".mode-toggle[data-mode='batch']"], 2, at="r"),
+        Mark(["#copy-code", "#download-code"], 3, at="r"),
     ])
     page.locator("#showPythonCodeSwitch").uncheck()
     page.wait_for_timeout(500)
@@ -554,14 +568,11 @@ def execution(cap):
     page.fill("#display_name_config", "methanol_screen")
     page.locator("#display_name_config").blur()
     cap.shot("execute-config", [
-        Mark("#myTabs", 1, at="tl"),
-        Mark(".card:has(#filenameSelect)", 2, at="tl"),
-        Mark("#dataInputTable thead", 3, at="tl"),
-        Mark("#tableBody tr >> nth=1", 4, at="l"),
-        Mark("#tab2 button:has-text('Add Row')", 5, at="bl"),
-        Mark("#display_name_config", 6, at="tl"),
-        Mark("#tab2 #batch_size", 7, at="tl"),
-        Mark("#tab2 button:has-text('Run')", 8, at="tl"),
+        Mark("#myTabs .nav-link", 1, at="r", nth=2),
+        Mark(".card:has(#filenameSelect)", 2, at="tl", outline=True),
+        Mark("#dataInputTable", 3, at="tl", outline=True),
+        Mark("#display_name_config", 4, at="r"),
+        Mark("#tab2 button:has-text('Run')", 5, at="r"),
     ], clip={"x": 0, "y": 0, "width": VIEWPORT["width"], "height": 730})
 
     # start it, then queue a second run behind it
@@ -576,38 +587,35 @@ def execution(cap):
     page.wait_for_timeout(300)
     modal = page.locator("#taskNameModal .modal-content")
     cap.shot("execute-queue-name", [
-        Mark("#queueTaskName", 1, at="tl"),
-        Mark("#confirmQueueBtn", 2, at="br"),
-    ], clip=region(modal, page=page, pad=16))
+        Mark("#queueTaskName", 1, at="l"),
+        Mark("#confirmQueueBtn", 2, at="r"),
+    ], clip=region(modal, page=page, pad=60))
     page.locator("#confirmQueueBtn").click()
     page.wait_for_timeout(800)
 
     cap.go("/executions/config")
     drag_resizer(page, 200)
-    page.wait_for_selector("#code-panel .executing-step", timeout=15000)
     page.wait_for_function("document.getElementById('iteration-display').textContent.includes('Iteration')")
-    page.wait_for_timeout(1200)
+    page.wait_for_function(
+        "(document.querySelector('#code-panel .executing-step') || {}).textContent?.includes('dose_solid')",
+        timeout=30000)
+    page.wait_for_timeout(300)
     cap.shot("execute-running", [
-        Mark("#code-panel", 1, at="tl", pad=2),
-        Mark("#iteration-display", 2, at="r", pad=3, dx=16),
-        Mark("#view-current-config", 3, at="tl", pad=2),
-        Mark("#pause-resume", 4, at="t", pad=2),
-        Mark("#abort-current", 5, at="t", pad=2),
-        Mark("#abort-pending", 6, at="tr", pad=2),
-        Mark(".progress:has(#progress-bar-inner)", 7, at="l", pad=3),
-        Mark("#logging-panel", 8, at="tl", pad=2),
-        Mark("#global-status-icon", 9, at="tr", pad=2),
+        Mark("#code-panel .executing-step", 1, at="l"),
+        Mark("#iteration-display", 2, at="r"),
+        Mark(["#view-current-config", "#abort-pending"], 3, at="l"),
+        Mark("#logging-panel", 4, at="r"),
+        Mark("#global-status-icon", 5, at="r"),
     ])
 
     page.locator("#queue-tab").click()
     page.wait_for_timeout(600)
     task = page.locator("#queue-list .list-group-item").first
+    queue_clip = region(".logging-panel h5", "#queue-list", page=page)  # and room below for the badges
     cap.shot("execute-queue", [
-        Mark(task.locator("div").first, 1, at="tl"),
-        Mark(task.locator("button[title='Edit']"), 2, at="b", pad=2),
-        Mark([task.locator("button:has(.bi-arrow-up)"), task.locator("button:has(.bi-arrow-down)")], 3, at="b", pad=2),
-        Mark(task.locator("button:has(.bi-trash)"), 4, at="b", pad=2),
-    ], clip=region(".logging-panel h5", "#queue-list", page=page))
+        Mark(task.locator("div").first, 1, at="b"),
+        Mark([task.locator("button[title='Edit']"), task.locator("button:has(.bi-trash)")], 2, at="b"),
+    ], clip=dict(queue_clip, height=queue_clip["height"] + 40))
 
     page.locator("#view-current-config").click()
     table_modal = page.locator(".modal.show .modal-content").first
@@ -615,12 +623,10 @@ def execution(cap):
     page.wait_for_timeout(800)
     rows = table_modal.locator("tbody tr")
     cap.shot("execute-edit-running", [
-        Mark(table_modal.locator(".progress").first.locator(".."), 1, at="tl"),
-        Mark(rows.nth(0).locator("td").nth(1), 2, at="tl", pad=2),
-        Mark(rows.nth(2).locator("input").first, 3, at="tr", pad=2),
-        Mark(rows.nth(2).locator("button").last, 4, at="tr", pad=2),
-        Mark(table_modal.locator("button", has_text="Add entry"), 5, at="bl"),
-    ], clip=region(table_modal, page=page, pad=16))
+        Mark([rows.nth(0).locator("td").nth(1), rows.nth(2).locator("td").nth(1)], 1, at="tl", outline=True),
+        Mark(rows.nth(2).locator("input").first, 2, at="b"),
+        Mark(table_modal.locator("button", has_text="Add entry"), 3, at="r"),
+    ], clip=region(table_modal, page=page, pad=24))
     page.keyboard.press("Escape")
     page.wait_for_timeout(500)
 
@@ -629,9 +635,9 @@ def execution(cap):
     stop.wait_for()
     page.wait_for_timeout(500)
     cap.shot("execute-stop", [
-        Mark(".form-check:has(#stopCleanupCheckbox)", 1, at="r"),
-        Mark(".form-check:has(#continueQueueCheckbox)", 2, at="r"),
-    ], clip=region(stop, page=page, pad=16))
+        Mark("label[for=stopCleanupCheckbox]", 1, at="r"),
+        Mark("label[for=continueQueueCheckbox]", 2, at="r"),
+    ], clip=region(stop, page=page, pad=24))
     page.locator("#stopWorkflowModal button", has_text="Cancel").click()
     page.wait_for_timeout(500)
 
@@ -646,21 +652,19 @@ def data(cap):
     cap.go("/executions/records")
     row = page.locator("tbody tr").first
     cap.shot("data-runs", [
-        Mark("#keyword", 1, at="tl"),
-        Mark(row.locator("td").nth(0), 2, at="tl"),
+        Mark("#keyword", 1, at="l"),
+        Mark(row.locator("td").nth(0), 2, at="l"),
         Mark("th:has-text('Submitted By')", 3, at="t"),
-        Mark(row.locator("a, button", has_text="Download CSV"), 4, at="tl"),
-        Mark(row.locator("a, button", has_text="View Logs"), 5, at="tl"),
+        Mark(row.locator("a, button", has_text="Download CSV"), 4, at="tr"),
     ], height=600)
 
     page.locator("tbody tr a", has_text="methanol_screen").first.click()
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(1500)
     cap.shot("data-run-overview", [
-        Mark("h1", 1, at="tl"),
-        Mark("#run-submitted-by", 2, at="l"),
-        Mark("#visualization", 3, at="tl"),
-        Mark("#config-results table", 4, at="tl"),
+        Mark("#run-submitted-by strong", 1, at="r"),
+        Mark("#visualization", 2, at="tl", outline=True),
+        Mark("#config-results table", 3, at="tl", outline=True),
     ])
     page.select_option("#output-select", "purity")
     page.wait_for_timeout(800)
@@ -670,9 +674,8 @@ def data(cap):
     page.evaluate("window.scrollBy(0, -420)")
     page.wait_for_timeout(600)
     cap.shot("data-run-steps", [
-        Mark("#output-select", 1, at="tl"),
-        Mark("#phase-plot", 2, at="tl"),
-        Mark(downloads, 3, at="tl"),
+        Mark("#output-select", 1, at="r"),
+        Mark(downloads, 2, at="r"),
     ])
 
 
@@ -683,10 +686,8 @@ def library(cap):
     row = page.locator("tbody tr").first
     cap.shot("library", [
         Mark("button:has-text('Deck:')", 1, at="tl"),
-        Mark("input[placeholder^='Search']", 2, at="tl"),
-        Mark(row.locator("td").nth(0), 3, at="tl"),
-        Mark(row.locator("td").nth(3), 4, at="t"),
-        Mark(row.locator("a, button", has_text="Open"), 5, at="tl"),
+        Mark("input[placeholder^='Search']", 2, at="l"),
+        Mark(row.locator("a, button", has_text="Open"), 3, at="t"),
     ], height=560)
 
 
@@ -695,14 +696,10 @@ def home(cap):
     page = cap.page
     cap.go("/")
     cap.shot("ui-tour", [
-        Mark(nav(page, "Library"), 1, at="t"),
-        Mark(nav(page, "Workflow"), 2, at="t"),
-        Mark(nav(page, "Execution"), 3, at="t"),
-        Mark(nav(page, "Data"), 4, at="t"),
-        Mark(nav(page, "Instruments"), 5, at="t"),
-        Mark(".navbar-nav.ms-auto .dropdown-toggle", 6, at="tl"),
-        Mark("#global-status-icon", 7, at="tr", pad=2),
-        Mark("#tipsButton, button:has-text('Workflow tips')", 8, at="tl"),
+        Mark([nav(page, "Library"), nav(page, "Instruments")], 1, at="b", outline=True, pad=4),
+        Mark(".navbar-nav.ms-auto .dropdown-toggle", 2, at="b"),
+        Mark("#global-status-icon", 3, at="r"),
+        Mark(page.locator("a, button", has_text="Open in Editor").first, 4, at="l"),
     ], height=720)
 
 
@@ -719,20 +716,15 @@ def errors(cap):
     page.fill("#display_name_repeat", "error_demo")
     page.fill("#tab1 #repeat", "1")
     cap.shot("execute-repeat", [
-        Mark("#display_name_repeat", 1, at="tl"),
-        Mark("#tab1 #batch_size", 2, at="tl"),
-        Mark("#tab1 #repeat", 3, at="tl"),
-        Mark("#tab1 button:has-text('Run')", 4, at="tl"),
+        Mark("#tab1 #repeat", 1, at="r"),
+        Mark("#tab1 button:has-text('Run')", 2, at="r"),
     ], clip={"x": 60, "y": 90, "width": 1320, "height": 430})
     page.locator("#tab1 button:has-text('Run')").first.click()
     page.wait_for_selector("#error-modal.show", timeout=30000)
     page.wait_for_timeout(800)
     cap.shot("execute-error", [
-        Mark("#error-message", 1, at="tl"),
-        Mark("#retry-btn", 2, at="bl"),
-        Mark("#continue-btn", 3, at="b"),
-        Mark("#stop-btn", 4, at="br"),
-        Mark("#global-status-icon", 5, at="tr", pad=2),
+        Mark(["#retry-btn", "#stop-btn"], 1, at="l"),
+        Mark("#global-status-icon", 2, at="r"),
     ])
     # simulate_error succeeds on its third call
     for _ in range(3):
@@ -762,10 +754,9 @@ def step_warnings(cap, workdir):
     page.locator(".tooltip.show").wait_for()
     page.wait_for_timeout(400)
     cap.shot("design-step-warnings", [
-        Mark("#deck-compatibility-banner", 1, at="tl"),
-        Mark(markers.nth(0), 2, at="l", pad=3, dx=-16),
-        Mark(markers.nth(1), 3, at="l", pad=3, dx=-16),
-        Mark(".tooltip.show", 4, at="br", pad=3),
+        Mark(markers.nth(0), 1, at="l", dist=34),
+        Mark(markers.nth(1), 2, at="l", dist=34),
+        Mark(".tooltip.show", 3, at="r"),
     ], clip={"x": 200, "y": 90, "width": 1190, "height": 400}, keep_mouse=True)
 
     page.mouse.move(0, 0)
@@ -773,15 +764,13 @@ def step_warnings(cap, workdir):
     modal = page.locator("#editStepModal .modal-content")
     modal.wait_for()
     page.wait_for_timeout(600)
-    cap.shot("design-step-warning-edit", [
-        Mark(modal.locator(".alert").first, 1, at="tl"),
-    ], clip=region(modal, page=page, pad=16))
+    cap.shot("design-step-warning-edit", [], clip=region(modal, page=page, pad=16))
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
 
     cap.go("/executions/config")
     warning = page.locator("#run-compatibility-warning")
-    cap.shot("execute-step-warnings", [Mark(warning, 1, at="tl")], clip=region(warning, page=page, pad=16))
+    cap.shot("execute-step-warnings", [], clip=region(warning, page=page, pad=16))
 
 
 def optimizer(cap):
@@ -809,12 +798,10 @@ def optimizer(cap):
     page.fill("#tab3 #repeat", "10")
     page.mouse.click(5, 300)
     cap.shot("execute-optimizer", [
-        Mark("#tab3 .card.shadow-sm:has(#existing_data)", 1, at="tl"),
-        Mark("#tab3 .card.shadow-sm:has(#display_name_bo)", 2, at="tl"),
-        Mark("#optimizer_type", 3, at="tl"),
-        Mark("#parameters_container", 4, at="tl"),
-        Mark("#purity_obj_min", 5, at="tl"),
-        Mark("#tab3 button[name=bo]", 6, at="r", dx=16),
+        Mark("#optimizer_type", 1, at="t"),
+        Mark("#parameters_container", 2, at="tl", outline=True),
+        Mark("#purity_obj_min", 3, at="l"),
+        Mark("#tab3 button[name=bo]", 4, at="r", dist=34),
     ], clip={"x": 0, "y": 0, "width": VIEWPORT["width"], "height": 730})
 
 

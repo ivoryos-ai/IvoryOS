@@ -30,10 +30,8 @@ Every option also asks for:
 :width: 1320px
 ```
 
-1. **Experiment name.**
-2. **Batch size.**
-3. **Repeat for**: how many times the **Experiment** phase runs.
-4. **Run** starts it.
+1. **Repeat for**: how many times the **Experiment** phase runs.
+2. **Run** starts it.
 
 ### Parameter table
 
@@ -43,17 +41,13 @@ Every option also asks for:
 ```
 
 1. **Run options.** Options this workflow cannot use are greyed out.
-2. **File actions.** **Download Template** gives an empty CSV with the right columns; fill it in
-   a spreadsheet and **Upload** it, or pick one saved before from **Select Existing**.
-3. **One column per `#name` input.** A safety limit on the step field a column feeds is shown
-   under its name, here `°C · 20 to 80` under `temp_c` (see
-   [Safety limits](instruments.md#safety-limits)).
-4. **One row per run of the workflow.** A row left entirely empty is skipped, so you never
-   have to delete spare rows.
-5. **Add Row** and **Clear** (which empties the table).
-6. **Experiment name.**
-7. **Batch size.**
-8. **Run** starts the run, or queues it if another run is in progress.
+2. **File actions.** Download an empty CSV template, fill it in a spreadsheet, and upload it,
+   or pick one you saved before.
+3. **The table.** One column per `#name` input and one row per run of the workflow. Rows left
+   empty are skipped. A [safety limit](instruments.md#safety-limits) is shown under its
+   column's name, here `°C · 20 to 80` under `temp_c`.
+4. **Experiment name.**
+5. **Run** starts the run, or queues it if another run is in progress.
 
 An input is optional when its argument is typed `Optional[...]` or `X | None`. When a
 table has both kinds, the required columns are marked with a red asterisk. In a filled row:
@@ -77,17 +71,16 @@ workflow has `#name` inputs and saves at least one numeric value, and an optimiz
 :width: 1440px
 ```
 
-1. **Data source.** Start from scratch, or give the optimizer earlier results to learn from:
-   a results file from a previous run or a CSV you upload.
-2. **Run settings.** **Batch size** is how many suggestions to try per iteration, and
-   **Max iterations** when to stop.
-3. **Optimizer strategy.** Only installed optimizers are listed.
-4. **Input parameters.** For each `#name` input, a range to search, a set of choices, or a
+1. **Optimizer.** Only installed optimizers are listed.
+2. **Input parameters.** For each `#name` input: a range to search, a set of choices, or a
    fixed value.
-5. **Objectives.** Which saved values to maximize or minimize, with an optional threshold
-   that stops the run early once reached.
-6. **Run Optimization** starts it. The **Optimizer Plot** tab in the monitor shows what the
-   optimizer has learned as the run goes.
+3. **Objective.** Maximize or minimize each saved value, with an optional threshold that ends
+   the run early.
+4. **Run Optimization** starts it.
+
+On the left, **Data Source** gives the optimizer earlier results to learn from (optional), and
+**Run Settings** sets how many suggestions to try per iteration and when to stop. The
+**Optimizer Plot** tab in the monitor shows what the optimizer has learned as the run goes.
 
 ## Watching a run
 
@@ -98,17 +91,13 @@ Once a run starts, the monitor shows where it is. Drag the bar up to see more of
 :width: 1440px
 ```
 
-1. **The workflow**, phase by phase, with the step running now highlighted.
-2. **Where the run is**: `Prep`, `Iteration: 1/3`, or `Clean up`, then how the run ended.
-3. **View or edit the run's table.** A pencil while the run has a parameter table you can still
-   change. See [Changing a table while it runs](#changing-a-table-while-it-runs).
-4. **Pause** and **Resume**.
-5. **Stop** the run.
-6. **Stop pending**: finish the current iteration, then stop.
-7. **Progress** through every step of every phase.
-8. **Log** of each step, with its values, and anything the instruments log. **Queue** lists the
-   runs waiting their turn, and **Optimizer Plot** shows an optimizer's progress.
-9. **Status**, on every page: **Idle**, **Running**, **Paused**, **Error** or **Input**. When
+1. **The step running now**, highlighted in the workflow.
+2. **Where the run is**: `Prep`, `Iteration: 2/3`, or `Clean up`, then how the run ended.
+3. **Run controls**, left to right: edit the run's table (see
+   [Changing a table while it runs](#changing-a-table-while-it-runs)), **Pause**/**Resume**,
+   **Stop**, and **Stop pending** (finish this iteration, then stop).
+4. **Log** of every step and its values. The **Queue** and **Optimizer Plot** tabs sit beside it.
+5. **Status**, on every page: **Idle**, **Running**, **Paused**, **Error** or **Input**. When
    it says **Error** or **Input**, click it to bring back the dialog waiting for you.
 
 What pausing, stopping, and errors do is described in [Run behavior](run-behavior.md).
@@ -119,16 +108,12 @@ The pencil opens the running table. Rows that have not started yet can still be 
 
 ```{image} ../_static/screenshots/execute-edit-running.png
 :alt: The Current Run dialog, listing each row of the table with its status
-:width: 832px
+:width: 848px
 ```
 
-1. How many rows are done.
-2. Each row's status: **done**, **running** or **pending**. Rows that finished are locked and
-   show the values they ran with.
-3. A pending row's values can be changed.
-4. Remove a pending row.
-5. **Add entry** appends a row. **Save** applies the changes; the progress bar follows the
-   new length of the table.
+1. Each row's status: **done**, **running** or **pending**. Finished rows are locked.
+2. A pending row can still be changed, or removed with the **×** at its end.
+3. **Add entry** appends a row. **Save** applies the changes.
 
 An `Enum` or `Literal` input is a dropdown here, as in the table. Rows that cannot run as
 entered are reported as soon as the run starts.
@@ -140,7 +125,7 @@ name and adds the new run to the queue:
 
 ```{image} ../_static/screenshots/execute-queue-name.png
 :alt: The System Busy dialog asking for a name for the queued run
-:width: 532px
+:width: 620px
 ```
 
 1. A name for the queued run, to tell it apart in the queue and on the **Data** page.
@@ -153,10 +138,8 @@ The **Queue** tab in the monitor lists the runs waiting their turn:
 :width: 684px
 ```
 
-1. The queued run: its name, batch size, how many rows it has, and who submitted it.
-2. **Edit** its settings before it starts.
-3. Move it up or down the queue.
-4. Remove it from the queue.
+1. The queued run: its name, how many rows it has, and who submitted it.
+2. **Edit** it before it starts, move it up or down, or remove it.
 
 The next run starts by itself when the current one finishes, unless the queue was paused
 (see [Run behavior](run-behavior.md#execution-queue)).
