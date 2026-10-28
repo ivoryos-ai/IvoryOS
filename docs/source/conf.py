@@ -163,6 +163,8 @@ source_suffix = {
 myst_enable_extensions = [
     'colon_fence',
 ]
+# lets pages link to a heading on another page, e.g. [Safety limits](instruments.md#safety-limits)
+myst_heading_anchors = 3
 
 exclude_patterns = [
     '_build',

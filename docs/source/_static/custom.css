@@ -189,6 +189,7 @@ body,
 .rst-content img,
 .rst-content iframe {
     max-width: 100%;
+    height: auto;
     border: 1px solid var(--ivory-line);
     border-radius: 8px;
     box-shadow: 0 10px 28px rgba(31, 41, 51, 0.12);

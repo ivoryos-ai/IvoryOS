@@ -1,108 +1,55 @@
 # Using the UI
 
-The IvoryOS browser UI is organized around operating a platform: call available functions, design reusable workflows, run experiments, and inspect the resulting records.
+The IvoryOS browser UI is built from the Python platform that is running: its instruments,
+their methods, and their arguments become the pages, forms and workflow actions you see. This
+page is a tour of the main screen; each area has a page of its own.
 
+## Following along
 
-## Devices
+The screenshots in these pages come from the abstract SDL example in the IvoryOS repository,
+a pretend lab with a `balance`, a `pump`, and an `sdl` module that doses solids and solvents,
+equilibrates a sample, and analyzes it. To try each step yourself, start it from a checkout:
 
-Use **Devices** to inspect the instruments, modules, and functions exposed by the running Python script. Device methods can be called directly for setup, manual checks, calibration, or one-off operations.
-
-When a method has typed arguments, IvoryOS creates matching input controls where possible. Enum arguments appear as dropdown-style choices, while basic values such as numbers and strings appear as editable fields.
-
-```{image} ../_static/control.png
-:alt: IvoryOS Devices page
+```console
+python community/examples/abstract_sdl_example/abstract_sdl.py
 ```
 
-## Design
+Then open <http://127.0.0.1:8000/ivoryos> and sign in. A new installation has an `admin`
+account with the password `admin`; change it from the account menu.
 
-Use **Design** to build workflows from available actions.
+Numbered orange markers on a screenshot point at what the list below it describes.
 
-1. Add actions from the available devices or workflow functions.
-2. Fill constant values directly into action arguments.
-3. Use `#parameter_name` when a value should be configured later for a run.
-4. Add flow-control actions such as wait, comment, if, or while when the workflow needs structure.
-5. Save return values from actions when later steps need to reuse them.
-6. Save the workflow so it can be reused from the library or execution page.
+## The main screen
 
-If an action returns a fixed-length tuple, the designer can show one save field per returned item so multiple outputs can be named separately.
-
-Every change to the workflow you are editing can be undone: adding, editing, moving,
-disabling, duplicating or deleting a step, and renaming it. Undo goes back to when that
-workflow was opened from the library, imported, or started with **New**, and no further, so
-it never brings back a different workflow. Use the undo and redo buttons beside **Save As**,
-or the keyboard:
-
-| Action | Windows and Linux | macOS |
-|---|---|---|
-| Undo | Ctrl+Z | ⌘Z |
-| Redo | Ctrl+Y or Ctrl+Shift+Z | ⇧⌘Z |
-
-The shortcuts leave text fields alone, so Ctrl+Z while typing undoes the typing. The clock
-button lists every change with its time; pick one to go straight back, or forward, to it.
-The history is kept per browser session and survives a server restart. **Import**,
-**Import Python** and **Export** are under **More**.
-
-```{image} ../_static/design.png
-:alt: IvoryOS workflow designer
+```{image} ../_static/screenshots/ui-tour.png
+:alt: The IvoryOS home page with its navigation bar
+:width: 1440px
 ```
 
-## Library
+The navigation bar follows the usual order of work, left to right:
 
-Use **Library** to reopen saved workflows and templates. Integrators can also configure startup template imports so commonly used workflows are available when the app starts.
+1. **[Library](library.md)**: saved workflows, ready to open.
+2. **[Workflow](workflow-designer.md)**: the designer, where actions are put in order.
+3. **[Execution](execution.md)**: set up a run, start it, and follow it.
+4. **[Data](data.md)**: the record of every run, with downloads.
+5. **[Instruments](instruments.md)**: call any instrument method directly, set safety
+   limits, and open the Python console.
+6. **Account menu**: change your password, customize the logo, or log out.
+7. **Status**, in the corner of every page: **Idle**, **Running**, **Paused**, **Error**, or
+   **Input** when a run is waiting for an answer. Click it when it says **Error** or **Input**
+   to bring back the dialog that is waiting for you.
+8. **Workflow tips**: a short guide to building workflows.
 
-```{image} ../_static/library.png
-:alt: IvoryOS data page
-```
+The home page also lists the most recently changed workflows, with a button to open each one
+in the designer.
 
-## Execute
+## A typical session
 
-Use **Execute** to prepare and run a workflow.
-
-IvoryOS chooses the available run configuration based on the workflow shape:
-
-| Workflow shape | Run option |
-| --- | --- |
-| No configurable parameters | Repeat count |
-| Configurable parameters | Parameter table |
-| Configurable parameters and numerical outputs | Optimizer configuration |
-
-Queued tasks can be named, paused, resumed, or stopped depending on their current state.
-
-In the parameter table, each row is one run of the workflow. A row left entirely empty is
-skipped, so you never have to delete spare rows.
-
-An input is optional when its argument is typed `Optional[...]` or `X | None`. When a
-table has both kinds, the required columns are marked with a red asterisk. In a filled row:
-
-- An empty optional cell runs as `None`.
-- To give `None` on purpose, type `None` in a text cell, or pick **None** at the end of an
-  optional dropdown. It shows in italics. It also counts as filling the row, so a table
-  whose only input is optional runs one row for each `None` you enter.
-- An empty required cell is marked, and the table does not run until it is filled. A
-  required dropdown offers only its choices; a required text cell still accepts `None`.
-
-```{image} ../_static/execute.png
-:alt: IvoryOS Execute page
-```
-
-See [Run behavior](run-behavior.md) for prep, script, cleanup, pause, stop, and queue behavior.
-
-## Data
-
-Use **Data** to inspect completed workflow records, step records, run outputs, logs, and generated result files.
-
-Each run records who submitted it. The run list has a **Submitted By** column you can sort
-by, and the search box finds runs by name or by user. A run's page shows who submitted it
-under its title. The queue on the Execute page also shows who submitted each waiting task.
-Runs from before this was recorded show `-`.
-
-IvoryOS stores run data under `ivoryos_data/` in the working directory. The most commonly inspected folders are:
-
-- `results/`: workflow result CSV files.
-- `scripts/`: generated workflow scripts and JSON workflow definitions.
-- `config_csv/`: saved run configuration CSV files.
-- `llm_output/`: design-agent prompts and raw responses.
-
-```{image} ../_static/data.png
-:alt: IvoryOS Data page
-```
+1. Try the instruments one call at a time on the [Instruments](instruments.md) page, and set
+   [safety limits](instruments.md#safety-limits) on anything that could do harm.
+2. Build a workflow in the [Workflow designer](workflow-designer.md), using `#name` for every
+   value you want to set per run.
+3. Click **Prepare Run**, choose how to run it on the [Execution](execution.md) page, and
+   start it. [Run behavior](run-behavior.md) explains pausing, stopping, and errors.
+4. Review the results on the [Data](data.md) page, or download them.
+5. Next time, open the workflow again from the [Library](library.md).

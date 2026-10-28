@@ -60,22 +60,53 @@ Use **Resume** to continue the paused workflow. The execution queue is also paus
 ## Human intervention and errors
 
 A workflow can pause for human intervention, or IvoryOS can pause after an execution error.
+A `pause` step shows its message and waits for someone to resume the run; an `input` step
+asks for a value and waits for the answer.
 
-When this happens, use the UI to continue, retry, stop, or otherwise resolve the paused run. **Retry** repeats the failed step when the current paused step recorded an error.
+When a step raises an error, including a value refused by a
+[safety limit](instruments.md#safety-limits), the run pauses and asks what to do:
+
+```{image} ../_static/screenshots/execute-error.png
+:alt: The Error Detected dialog during a run, with Rerun Current Step, Continue and Stop Execution
+:width: 1440px
+```
+
+1. The error the step raised.
+2. **Rerun Current Step** tries the failed step again, for example after fixing a jammed
+   vial or reconnecting a cable.
+3. **Continue** carries on with the next step, leaving the failed one as it is.
+4. **Stop Execution** stops the run, skips cleanup, and pauses the queue.
+5. The status turns to **Error** on every page. If you close the dialog or move to another
+   page, click it to bring the dialog back.
 
 A common cause is a workflow that no longer matches the deck, because the deck was edited after the workflow was saved. The execution page warns about those steps before you start a run. See [Workflow step warnings](deck-compatibility.md) for what each warning means.
 
 ## Stop pending
 
-Use **Stop pending** when the current iteration should finish but future iterations should be skipped.
-
-Cleanup still runs by default. If the cleanup checkbox is disabled, the cleanup phase is skipped too.
+Use **Stop pending** (the hourglass) when the current iteration should finish but future iterations should be skipped.
 
 ## Stop current
 
-Use **Stop current** when the current workflow should stop as soon as IvoryOS reaches a cooperative stop check.
+Use **Stop current** (the stop button) when the current workflow should stop as soon as IvoryOS reaches a cooperative stop check.
 
-This does not force-kill a Python function or hardware call that is already running. IvoryOS waits for the active action to return, then skips the remaining workflow steps and cleanup.
+This does not force-kill a Python function or hardware call that is already running. IvoryOS waits for the active action to return, then skips the remaining workflow steps.
+
+## Cleanup and the queue after a stop
+
+Both stop buttons ask how the run should wind down:
+
+```{image} ../_static/screenshots/execute-stop.png
+:alt: The Stop Workflow dialog with its two checkboxes
+:width: 532px
+```
+
+1. **Proceed to cleanup steps**: tick it to run the **Clean up** phase before stopping, for
+   example to turn off a heater. Left unticked, cleanup is skipped.
+2. **Continue execution queue**: tick it to let the next queued run start once this one has
+   stopped. Left unticked, the queue pauses (see below).
+
+Both start unticked: **Stop current** clears them each time its dialog opens, and **Stop pending**
+keeps your last choice until the page is reloaded.
 
 ## Execution queue
 
