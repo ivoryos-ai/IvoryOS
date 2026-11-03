@@ -233,6 +233,22 @@ def config_row_problem(values, fields, arg_types, limits=None):
     return None
 
 
+def unset_input_problems(fields, arg_types, rows=None):
+    """``["'input' has no value: ...", ...]`` for workflow inputs a run would leave unset.
+
+    An input is a ``#name`` that no step sets, so only the run can give it, by a config row or an
+    optimizer parameter. The page asks for it, but a repeat run posted without a table, or an API row
+    leaving it out, would call the step with None. ``rows`` are the run's config entries, None if it
+    has none. An input that takes None (see :func:`accepts_none`) may be left out.
+    """
+    required = [field for field in fields if not accepts_none(arg_types.get(field))]
+    if not rows:
+        return [f"'{field}' has no value: no step in the workflow sets it, so the run has to give it."
+                for field in required]
+    return [f"Row {number}, '{field}': No value." for number, row in enumerate(rows, start=1)
+            for field in required if field not in row]
+
+
 # --- reading --------------------------------------------------------------
 
 

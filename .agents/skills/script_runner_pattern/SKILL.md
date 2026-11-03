@@ -242,8 +242,11 @@ store_return_value(context, arg_contexts, return_var="result", result=output)
 - `"#var_name"` → direct lookup in context
 - `"prefix_#var_name_suffix"` → inline substitution via regex
 
-Condition evaluation (`if`, `while`) uses `_evaluate_condition(condition_str, context)` which
-calls `eval()` with `__builtins__={}` and the context as the local scope — reasonably safe.
+Condition evaluation (`if`, `while`) uses `_evaluate_condition(condition_str, context)`, and
+variable and math steps use `_execute_variable_batched`. Both read the expression with
+`ivoryos.utils.expressions.evaluate` instead of `eval()`: plain expressions only (literals,
+variables, arithmetic, comparisons, indexing, f-strings, a value's public methods), with
+underscore names and attributes refused.
 
 ---
 

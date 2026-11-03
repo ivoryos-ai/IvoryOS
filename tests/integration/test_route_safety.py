@@ -88,6 +88,41 @@ def test_a_workflow_past_a_limit_is_not_started(auth, test_deck, limits, monkeyp
     run_script.assert_not_called()
 
 
+def test_a_run_that_leaves_an_input_unset_is_not_started(auth, test_deck, monkeypatch):
+    from ivoryos.routes.execute import execute as execute_module
+    from ivoryos.runtime.state import global_state
+
+    started = []
+
+    def run_script(**kwargs):
+        started.append(kwargs)
+        global_state.runner_status = {"id": 1}  # what the JSON route waits for
+        return 'queued'
+
+    monkeypatch.setattr(execute_module.runner, 'run_script', run_script)
+    monkeypatch.setattr(global_state, 'runner_status', None)
+    # `#volume` is set by no step, so only the run can give it
+    draft_with(auth, {'arg': '#volume'})
+    json_headers = {"Accept": "application/json"}
+
+    body = auth.post('/ivoryos/executions/config', data={'repeat': '1', 'batch_size': '1'},
+                     follow_redirects=True).get_data(as_text=True)
+    assert "&#39;volume&#39; has no value: no step in the workflow sets it" in body
+    refused = auth.post('/ivoryos/executions/config', json={'repeat': 1}, headers=json_headers)
+    assert refused.status_code == 400
+    refused = auth.post('/ivoryos/executions/config', json={'kwargs': [{'volume': 1}, {'other': 1}]},
+                        headers=json_headers)
+    assert refused.get_json()['problems'] == ["Row 2, 'volume': No value."]
+    refused = auth.post('/ivoryos/executions/campaign', json={'parameters': [], 'objectives': []},
+                        headers=json_headers)
+    assert refused.status_code == 400
+    assert not started
+
+    assert auth.post('/ivoryos/executions/config', json={'kwargs': [{'volume': 5}]},
+                     headers=json_headers).status_code == 200
+    assert started
+
+
 def test_the_designer_shows_a_fields_unit_and_range(auth, test_deck, limits):
     limits([FLOAT_LIMIT])
 

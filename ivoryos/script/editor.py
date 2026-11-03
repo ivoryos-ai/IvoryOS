@@ -41,25 +41,6 @@ class ScriptEditor:
                 if action['uuid'] == int(uuid_val):
                     return action
 
-    def _convert_type(self, args, arg_types):
-        if arg_types in ["list", "tuple", "set"]:
-            try:
-                args = ast.literal_eval(args)
-                return args
-            except Exception:
-                pass
-        if type(arg_types) is not list:
-            arg_types = [arg_types]
-        for arg_type in arg_types:
-            if isinstance(arg_type, str) and arg_type.startswith("Enum:"):
-                 continue
-            try:
-                args = eval(f"{arg_type}('{args}')")
-                return
-            except Exception:
-                pass
-        raise TypeError(f"Input type error: cannot convert '{args}' to {arg_type}.")
-
     def update_by_uuid(self, uuid, args, output, batch_action=False, consolidate_batch_args=False):
         action = self.find_by_uuid(uuid)
         if not action:
@@ -254,7 +235,8 @@ class ScriptEditor:
                     try:
                         converted = ast.literal_eval(value)
                         if valid_types:
-                            if type(converted).__name__ in valid_types:
+                            # text that parses to text had quotes, and they are part of what was typed
+                            if type(converted).__name__ in valid_types and not isinstance(converted, str):
                                 kwargs[key] = converted
                                 is_converted = True
                         else:

@@ -16,7 +16,7 @@ from ivoryos.services.draft_service import get_script_file
 from ivoryos.services.connection_history import import_history
 from ivoryos.parsers.type_conversions import check_config_duplicate, web_config_entry_wrapper
 from ivoryos.runtime.safety import guard
-from ivoryos.runtime.task_conditions import config_form_problems, optional_inputs
+from ivoryos.runtime.task_conditions import config_form_problems, optional_inputs, unset_input_problems
 from ivoryos.parsers.bo_campaign import parse_optimization_form
 from ivoryos.models import db, SingleStep, WorkflowRun, WorkflowStep, WorkflowPhase
 from ivoryos.runtime.state import GlobalState
@@ -228,6 +228,9 @@ def experiment_run():
             batch_size = int(request.form.get('batch_size', 1))
             repeat = request.form.get('repeat', None)
 
+        # a #name no step sets has to come from the run: a table row checked above, or an API row
+        if not config or compiled:
+            config_problems += unset_input_problems(*ScriptEditor(script).config("script"), config)
         # values written into the steps, and an API run's rows, against the instruments' limits
         config_problems += guard.check_steps(script)
         if compiled and config:
@@ -398,6 +401,10 @@ def run_bo():
         # print(additional_params)
     # the steps' own values, and a search range or choices reaching past a limit
     limit_problems = guard.check_steps(script) + guard.check_search_space(script, parameters)
+    # a #name no step sets has to be a parameter of the campaign
+    fields, arg_types = ScriptEditor(script).config("script")
+    named = {parameter.get("name") for parameter in parameters or [] if isinstance(parameter, dict)}
+    limit_problems += unset_input_problems([field for field in fields if field not in named], arg_types)
     if limit_problems:
         if request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json':
             return jsonify({"error": "Nothing was started: some values can't run.", "problems": limit_problems}), 400

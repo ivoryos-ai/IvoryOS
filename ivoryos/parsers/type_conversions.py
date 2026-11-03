@@ -1,18 +1,24 @@
 import ast
 from collections import Counter
+from ivoryos.parsers.structured_types import is_scalar_annotation, to_bool, to_float, to_int, to_scalar
 from ivoryos.script.editor import ScriptEditor
 from ivoryos.utils.enums import enum_class_from_type, find_member
+
+# the recorded type names a config cell can be converted to; any other name is not one
+_CONVERTERS = {"int": to_int, "float": to_float, "bool": to_bool, "complex": complex,
+               "list": list, "tuple": tuple, "set": set, "dict": dict}
 
 
 def _convert_by_str(args, arg_types):
     """
-    Converts a value to type through eval(f'{type}("{args}")')
+    Converts a value to a type recorded by name. The name and the value come from a saved step and a
+    config cell, so neither is ever evaluated.
     """
     if not isinstance(arg_types, list):
         arg_types = [arg_types]
     can_be_str = False
     for arg_type in arg_types:
-        if arg_type in ["str", "any"]:
+        if arg_type in ["str", "any", ""]:
             can_be_str = True
             continue
         try:
@@ -30,14 +36,15 @@ def _convert_by_str(args, arg_types):
                 if str(args) in options:
                     return args
                 raise ValueError(f"Value '{args}' not in Literal choices: {options}")
-            converted_args = eval(f'{arg_type}("{args}")') if type(args) is str else eval(f'{arg_type}({args})')
-            return converted_args
+            converter = _CONVERTERS.get(arg_type)
+            if converter is not None:
+                return converter(args)
         except Exception:
             continue
-            
+
     if can_be_str:
         return args
-        
+
     raise TypeError(f"Input type error: cannot convert '{args}' to any of {arg_types}.")
 
 
@@ -46,17 +53,24 @@ def _convert_by_class(args, arg_types):
     Converts a value to type through type(arg)
     """
     if arg_types.__module__ == 'builtins':
-        args = arg_types(args)
-        return args
-    elif arg_types.__module__ == "typing":
+        return to_scalar(args, arg_types) if is_scalar_annotation(arg_types) else arg_types(args)
+    elif arg_types.__module__ in ("typing", "types"):  # "types": X | None
         for i in arg_types.__args__:
             try:
-                args = i(args)
-                return args
+                return to_scalar(args, i) if is_scalar_annotation(i) else i(args)
             except Exception:
                 pass
         raise TypeError("Input type error.")
     return args
+
+
+def _keeps_text(value, arg_type):
+    """Whether a cell stays as typed: a text input, unless it also takes what the cell parsed to.
+    A cell holding ``1.5``, ``True`` or ``[1, 2]`` is still text to a ``str`` argument."""
+    types = arg_type if isinstance(arg_type, list) else [arg_type]
+    if not ("str" in types or str in types):
+        return False
+    return isinstance(value, str) or type(value).__name__ not in types
 
 
 def convert_config_type(args, arg_types, is_class: bool = False):
@@ -72,14 +86,20 @@ def convert_config_type(args, arg_types, is_class: bool = False):
                 args[arg] = None
             else:
                 arg_type = arg_types[arg]
+                text = args[arg]
                 try:
                     args[arg] = ast.literal_eval(args[arg])
                 except Exception:
                     pass
-                
+                if _keeps_text(args[arg], arg_type):
+                    args[arg] = text
+                    continue
+
                 is_valid_type = False
                 if isinstance(arg_type, list):
-                    if type(args[arg]).__name__ in arg_type:
+                    # an Optional[Tuple[...]] is recorded by typing's name, "Tuple"
+                    value_type = type(args[arg]).__name__
+                    if value_type in arg_type or value_type.capitalize() in arg_type:
                         is_valid_type = True
                 else:
                     if type(args[arg]) is arg_type or type(args[arg]).__name__ == arg_type:
