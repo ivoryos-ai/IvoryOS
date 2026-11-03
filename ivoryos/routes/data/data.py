@@ -281,6 +281,34 @@ def download_workflow_steps_data_csv(workflow_id: int):
     )
 
 
+def _partial_outputs(phase):
+    """What an iteration that never finished got done, one row per sample.
+
+    A step keeps the whole context of the sample it ran for, inputs included, so
+    each finished step is matched to the sample whose inputs it agrees with most,
+    and a sample's row is the last step that ran for it. A shared step only keeps
+    the first sample's context, so its values reach the other samples' rows once
+    one of their own steps has run.
+    """
+    from ivoryos.models import WorkflowStep
+    samples = phase.parameters if isinstance(phase.parameters, list) else [phase.parameters]
+    samples = [sample if isinstance(sample, dict) else {} for sample in samples] or [{}]
+    latest = [None] * len(samples)
+    steps = WorkflowStep.query.filter(
+        WorkflowStep.phase_id == phase.id,
+        WorkflowStep.end_time.isnot(None)
+    ).order_by(WorkflowStep.id).all()
+    for step in steps:
+        if not isinstance(step.output, dict):
+            continue
+        scores = [sum(step.output.get(key) == value for key, value in sample.items()) for sample in samples]
+        best = max(scores)
+        for index, score in enumerate(scores):
+            if score == best:
+                latest[index] = step.output
+    return [output for output in latest if output]
+
+
 @data.get("/executions/records/<int:workflow_id>/data_csv")
 @login_required
 def download_workflow_data_csv(workflow_id: int):
@@ -288,9 +316,8 @@ def download_workflow_data_csv(workflow_id: int):
     Download a dynamically generated CSV export of the workflow's main data.
     """
     import pandas as pd
-    from ivoryos.models import WorkflowStep
     from ivoryos.script.editor import ScriptEditor
-    
+
     workflow = db.session.get(WorkflowRun, workflow_id)
     if not workflow:
         return jsonify({"error": "Workflow not found"}), 404
@@ -316,13 +343,8 @@ def download_workflow_data_csv(workflow_id: int):
                 ]
             output_list.extend(outputs)
         else:
-            # Phase is running or failed, fetch latest completed step output
-            last_step = WorkflowStep.query.filter(
-                WorkflowStep.phase_id == phase.id,
-                WorkflowStep.end_time.isnot(None)
-            ).order_by(WorkflowStep.step_index.desc()).first()
-            if last_step and last_step.output:
-                output_list.append(last_step.output)
+            # Phase is running or failed, so its steps hold what it got done
+            output_list.extend(_partial_outputs(phase))
 
     if not output_list:
         return "No data available yet.", 404

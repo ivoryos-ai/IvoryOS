@@ -345,3 +345,41 @@ def test_a_run_page_says_who_submitted_it(auth):
     assert 'Submitted by <strong>alice</strong>' in page
     # a run from before the submitter was kept says nothing rather than guessing
     assert 'run-submitted-by' not in auth.get(f'/ivoryos/executions/records/{older_id}').get_data(as_text=True)
+
+
+def test_data_csv_keeps_what_an_unfinished_batch_got_done(auth):
+    """
+    GIVEN a batch of two samples whose first step ran for both, and whose second
+    step failed on the first sample, leaving the run paused
+    WHEN the data CSV is downloaded
+    THEN each sample has its own row with what its steps returned so far
+    """
+    import pandas as pd
+    from io import StringIO
+
+    with auth.application.app_context():
+        run = WorkflowRun(name='partial', platform='test_platform', start_time=datetime(2026, 5, 14, 12, 0, 0),
+                          data_path='partial.csv', repeat_mode='batch')
+        db.session.add(run)
+        db.session.commit()
+        phase = WorkflowPhase(run_id=run.id, name='main', repeat_index=1,
+                              parameters=[{'x': 1}, {'x': 2}], start_time=datetime(2026, 5, 14, 12, 1, 0))
+        db.session.add(phase)
+        db.session.commit()
+        ended = datetime(2026, 5, 14, 12, 2, 0)
+        db.session.add_all([
+            WorkflowStep(phase_id=phase.id, step_index=1, method_name='measure', end_time=ended,
+                         output={'x': 1, 'a': 10}),
+            WorkflowStep(phase_id=phase.id, step_index=1, method_name='measure', end_time=ended,
+                         output={'x': 2, 'a': 20}),
+            WorkflowStep(phase_id=phase.id, step_index=2, method_name='analyse', end_time=ended,
+                         run_error=True, output={'x': 1, 'a': 10}),
+        ])
+        db.session.commit()
+        run_id = run.id
+
+    response = auth.get(f'/ivoryos/executions/records/{run_id}/data_csv')
+
+    assert response.status_code == 200
+    rows = pd.read_csv(StringIO(response.get_data(as_text=True))).to_dict(orient='records')
+    assert rows == [{'x': 1, 'a': 10}, {'x': 2, 'a': 20}]
