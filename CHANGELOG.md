@@ -1,4 +1,20 @@
 ﻿# Changelog
+## 1.8.0 (November 3rd, 2026)
+Arguments now reach the driver as their annotated types, dict, list, set and tuple arguments can be edited in forms, and the user docs are now [step-by-step tutorials](https://ivoryos.readthedocs.io/en/latest/users/index.html).
+
+**Upgrading:** `if`/`while` conditions and [`variable`/`math` steps](https://ivoryos.readthedocs.io/en/latest/users/workflow-designer.html) no longer use `eval`, so lambdas, comprehensions and names or attributes starting with `_` are refused. A run also won't start if a required `#name` that no step sets has no value.
+
+- !230 **[QoL]** include every sample of an unfinished batch in the data CSV
+- !229 **[New]** support `List`, `Set` and `Tuple` arguments in forms
+- !229 **[Bug]** cast arguments to their annotated types when the driver is called, and remove `eval` from workflows
+- !228 **[New]** add user tutorial pages with annotated screenshots
+- !227 **[Bug]** resolve building blocks and registered workflows not updating once set
+- !226 **[Bug]** resolve `Optional[Literal]` handling in forms, workflows and exported code
+- !225 **[QoL]** rework the Instruments page to run methods without reloading, and mark steps left running by a server restart as interrupted
+- !224 **[Bug]** resolve single task overlay blocking the pop-up window
+- !223 **[New]** add JSON/table editor for dict arguments, resolving their display and editing in the workflow designer
+- !222 **[Bug]** resolve blank default pause/repeat input error in older drafts
+
 ## 1.7.2 (October 13th, 2026)
 - !221 **[Bug]** fix failed to add method: The CSRF tokens do not match
 
