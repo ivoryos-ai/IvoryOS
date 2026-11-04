@@ -13,7 +13,8 @@ from ivoryos.utils.decorators import BUILDING_BLOCKS
 from ivoryos.models import db, SingleStep
 from ivoryos.runtime.safety import guard
 from ivoryos.parsers.structured_types import (
-    is_dict_annotation, is_scalar_annotation, is_tuple_annotation, to_dict, to_scalar, to_tuple,
+    is_dict_annotation, is_list_annotation, is_scalar_annotation, is_set_annotation, is_tuple_annotation, to_dict,
+    to_list, to_scalar, to_set, to_tuple,
 )
 from ivoryos.utils.enums import (
     NOT_AN_OPTION, enum_class_of, find_member, find_option, literal_options_of, setter_annotation,
@@ -268,6 +269,10 @@ class TaskRunner:
                     converted[name] = to_tuple(value, param.annotation)
                 elif is_dict_annotation(param.annotation):
                     converted[name] = to_dict(value, param.annotation)
+                elif is_list_annotation(param.annotation):
+                    converted[name] = to_list(value, param.annotation)
+                elif is_set_annotation(param.annotation):
+                    converted[name] = to_set(value, param.annotation)
                 elif is_scalar_annotation(param.annotation):
                     # never guessed from the text: `a, b` is not a list to a str, and 2.5 is not an int
                     converted[name] = to_scalar(value, param.annotation)
@@ -277,26 +282,10 @@ class TaskRunner:
                     
                     if isinstance(value, str):
                        val = convert_guess(value)
-                       
-                       # Helper to check if target is a list type
-                       target_type = param.annotation
-                       is_list_target = target_type is list
-                       if not is_list_target:
-                           # Check for typing.List (e.g. List[int])
-                           origin = getattr(target_type, "__origin__", None)
-                           if origin is list:
-                               is_list_target = True
 
-                       # Wrap single items or cast tuples to list
-                       if is_list_target:
-                           if isinstance(val, tuple):
-                               val = list(val)
-                           elif not isinstance(val, list):
-                               val = [val]
-                       
-                       # Try to cast to target type if possible (e.g. valid for int, float, str, but fails for typing.List)
+                       # Try to cast to target type if possible (fails for typing generics)
                        try:
-                           converted[name] = target_type(val)
+                           converted[name] = param.annotation(val)
                        except Exception:
                            # Casting failed (common for typing generics), just use the guessed/casts val
                            converted[name] = val

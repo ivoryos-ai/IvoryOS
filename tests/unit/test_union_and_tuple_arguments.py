@@ -132,7 +132,7 @@ def test_to_tuple_refuses_what_cannot_be_the_type(value, annotation):
         to_tuple(value, annotation)
 
 
-def test_to_containers_converts_only_tuple_and_dict_arguments():
+def test_to_containers_leaves_arguments_that_are_not_containers():
     def move(position: Tuple[float, float], gains: Dict[int, float], speed: float = 1.0, name=None):
         return position
 

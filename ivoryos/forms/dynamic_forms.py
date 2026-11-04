@@ -21,9 +21,9 @@ from ivoryos.runtime.state import GlobalState
 
 from ivoryos.parsers.introspection import get_return_type
 from ivoryos.parsers.structured_types import (
-    find_structured_type, format_structured_value, has_variables, is_dict_annotation, is_variable, load_structured_type,
-    parse_structured_value, render_python, structured_schema, structured_template, to_bool, to_dict,
-    validate_structured_value,
+    find_structured_type, format_structured_value, has_variables, is_dict_annotation, is_list_annotation,
+    is_set_annotation, is_tuple_annotation, is_variable, load_structured_type, parse_structured_value, render_python,
+    structured_schema, structured_template, to_bool, to_dict, to_list, to_set, to_tuple, validate_structured_value,
 )
 from ivoryos.runtime.safety import describe as describe_limit, guard
 from ivoryos.utils.enums import _UNIONS, enum_class_of, find_member
@@ -446,6 +446,67 @@ class StructuredField(Field):
 STRUCTURED_PLACEHOLDER = 'JSON, e.g. {"key": value}; #variables allowed for any value'
 
 
+class CollectionField(VariableOrStringField):
+    """
+    A list, set or tuple argument, typed as ``a, b`` or as Python (``['a', 'b']``). What cannot be its type is refused
+    here, and the field holds a list either way: JSON has neither sets nor tuples, so the driver gets those when it is
+    called (``to_set``, ``to_tuple``).
+    """
+
+    def __init__(self, label='', validators=None, annotation=list, script=None, **kwargs):
+        super().__init__(label, validators, script=script, **kwargs)
+        self.annotation = annotation
+
+    def _value(self):
+        if self.raw_data:
+            return str(self.raw_data[0])
+        if self.data is None:
+            return ""
+        # a set default as a list: an empty set's text, set(), could not be typed back in
+        return str(list(self.data) if isinstance(self.data, (set, frozenset)) else self.data)
+
+    def process_formdata(self, valuelist):
+        if not valuelist:
+            return
+        value = valuelist[0] if len(valuelist) == 1 else valuelist  # JSON sends a list as several values
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                self.data = None
+                return
+            if is_variable(value):
+                if self.script is None:
+                    raise ValueError(self.gettext("Variables are only supported when designing a workflow"))
+                if not self.script.editing_type == "script":
+                    raise ValueError(self.gettext("Variable is not supported in prep/cleanup"))
+                self.data = value
+                return
+            variable = find_variable(value, self.script)[0] if self.script else None
+            if variable:
+                self.data = f"#{variable}"
+                return
+        try:
+            convert = to_set if is_set_annotation(self.annotation) else (
+                to_tuple if is_tuple_annotation(self.annotation) else to_list)
+            items = convert(value, self.annotation)
+        except ValueError as exc:
+            self.data = None
+            raise ValueError(str(exc)) from exc
+        self.data = None if items is None else list(items)
+
+
+COLLECTION_PLACEHOLDER = "a, b or Python syntax, e.g. ['a', 'b']"
+
+
+def _collection_annotation(annotation):
+    """The annotation a :class:`CollectionField` casts by, or None. A name recorded for a saved step, or a string
+    annotation, has no item type to cast by."""
+    if isinstance(annotation, str):
+        return {"list": list, "List": list, "set": set, "Set": set, "tuple": tuple, "Tuple": tuple}.get(annotation)
+    is_collection = is_list_annotation(annotation) or is_set_annotation(annotation) or is_tuple_annotation(annotation)
+    return annotation if is_collection else None
+
+
 def _is_output_reference(value):
     """``{"name": "function_output"}``: a step argument that is the output of an earlier step, not a dict value."""
     return isinstance(value, dict) and len(value) == 1 and next(iter(value.values())) == "function_output"
@@ -629,6 +690,11 @@ def create_form_for_method(method, autofill, script=None, design=True, limits=No
                 field_kwargs["default"] = structured_template(param.annotation)
             extra_kwargs = {"annotation": param.annotation}
             extra_render_kwargs = _structured_render_kwargs(field_kwargs["default"], param.annotation)
+
+        elif _collection_annotation(param.annotation) is not None:
+            field_class = CollectionField
+            placeholder_text = COLLECTION_PLACEHOLDER
+            extra_kwargs = {"annotation": _collection_annotation(param.annotation)}
 
         elif _is_enum_type(param.annotation):
             enum_class = _unwrap_enum_type(param.annotation)
@@ -980,11 +1046,19 @@ def create_form_from_action(action: dict, script=None, design=True):
         param_type = param_type if type(param_type) is str else f"{param_type}"
         extra_kwargs = {}
         extra_render_kwargs = {}
+        # the item type from the driver, when it is there to ask; a saved step records only "list"
+        collection_annotation = _collection_annotation(param_type)
+        if collection_annotation is not None and sig and name in sig.parameters:
+            collection_annotation = _collection_annotation(sig.parameters[name].annotation) or collection_annotation
         if structured_type is not None:
             field_class = StructuredField
             placeholder_text = STRUCTURED_PLACEHOLDER
             extra_kwargs = {"annotation": load_structured_type(structured_type)}
             extra_render_kwargs = _structured_render_kwargs(value, extra_kwargs["annotation"])
+        elif collection_annotation is not None:
+            field_class = CollectionField
+            placeholder_text = COLLECTION_PLACEHOLDER
+            extra_kwargs = {"annotation": collection_annotation}
         elif param_type.startswith("Enum:"):
             try:
                 _, full_path = param_type.split(":", 1)

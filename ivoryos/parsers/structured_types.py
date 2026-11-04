@@ -305,9 +305,91 @@ def is_tuple_annotation(annotation):
     return inner is tuple or get_origin(inner) is tuple
 
 
+def is_list_annotation(annotation):
+    """``list``, ``List[X]`` / ``list[X]``, or an ``Optional`` of one."""
+    inner, _ = _strip_optional(annotation)
+    return inner is list or get_origin(inner) is list
+
+
+def is_set_annotation(annotation):
+    """``set``, ``Set[X]`` / ``set[X]``, or an ``Optional`` of one."""
+    inner, _ = _strip_optional(annotation)
+    return inner is set or get_origin(inner) is set
+
+
+def _literal_or_text(text, as_text):
+    """One comma-separated item: quoted text without its quotes; otherwise the text as typed when ``as_text``, else
+    the Python value it reads as, if any."""
+    try:
+        value = ast.literal_eval(text)
+    except (ValueError, SyntaxError, TypeError):
+        return text
+    return value if isinstance(value, str) or not as_text else text
+
+
+def parse_collection_text(text, item_type=None):
+    """
+    The items of a list, set or tuple typed as text, the same for the Instruments page and a workflow.
+
+    Brackets mean Python syntax, so ``[A1, B2]`` is refused: text inside them needs quotes. Without brackets, commas
+    separate the items. An item of a ``List[str]`` stays as typed (``1E5`` is not 100000.0), and any other is read as
+    a Python value where it can be (``A1, 2`` is ``["A1", 2]``).
+    """
+    text = text.strip()
+    if not text:
+        return []
+    if text[0] in "[({":
+        try:
+            parsed = ast.literal_eval(text)
+        except (ValueError, SyntaxError, TypeError) as e:
+            raise ValueError(f"{text!r} is not valid Python: text in brackets needs quotes, as in ['a', 'b']") from e
+        if isinstance(parsed, dict):
+            raise ValueError(f"{text!r} is a dict, not a list of items")
+        return list(parsed) if isinstance(parsed, (list, tuple, set)) else [parsed]
+    as_text = _strip_optional(item_type)[0] is str
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError, TypeError):
+        pass
+    else:
+        items = list(parsed) if isinstance(parsed, tuple) else [parsed]
+        if not as_text or all(isinstance(item, str) for item in items):
+            return items
+    return [_literal_or_text(part.strip(), as_text) for part in text.split(",")]
+
+
+def to_list(value, annotation):
+    """
+    A list argument with its items cast by ``List[X]``, from text or from a saved step. ``ValueError`` when an item
+    cannot be its type. A bare ``list`` has nothing to cast by.
+    """
+    inner, optional = _strip_optional(annotation)
+    args = get_args(inner)
+    item_type = args[0] if args else None
+    if isinstance(value, str) and not is_variable(value):
+        if optional and value.strip() in ("", "None"):
+            return None
+        value = parse_collection_text(value, item_type)
+    if value is None or is_variable(value):
+        return value
+    items = list(value) if isinstance(value, (list, tuple, set)) else [value]
+    return [_cast_item(item, item_type) for item in items] if args else items
+
+
+def to_set(value, annotation):
+    """A set argument: JSON has no sets, so a saved step holds a list. Items are cast as in :func:`to_list`."""
+    items = to_list(value, annotation)
+    if items is None or is_variable(items):
+        return items
+    try:
+        return set(items)
+    except TypeError as e:
+        raise ValueError(f"{items!r} cannot be a set: {e}") from e
+
+
 def _cast_item(item, annotation):
     """
-    An element of a tuple, or a key or value of a dict, as its annotation says. A type without a rule here (an Enum,
+    An element of a collection, or a key or value of a dict, as its annotation says. A type without a rule here (an Enum,
     a union, ``Any``) is left as it came, and so are None and ``#variables``.
     """
     inner, _ = _strip_optional(annotation)
@@ -317,8 +399,10 @@ def _cast_item(item, annotation):
         return to_tuple(item, inner)
     if is_dict_annotation(inner):
         return to_dict(item, inner)
-    if get_origin(inner) is list and get_args(inner) and isinstance(item, (list, tuple)):
-        return [_cast_item(element, get_args(inner)[0]) for element in item]
+    if is_list_annotation(inner) and isinstance(item, (list, tuple, set)):
+        return to_list(item, inner)
+    if is_set_annotation(inner) and isinstance(item, (list, tuple, set)):
+        return to_set(item, inner)
     # the whole annotation, so the word None in an Optional is None
     return to_scalar(item, annotation) if is_scalar_annotation(inner) else item
 
@@ -326,17 +410,19 @@ def _cast_item(item, annotation):
 def to_tuple(value, annotation):
     """
     A tuple argument as the tuple the driver asked for: JSON has no tuples, so a saved step holds a list, and text
-    arrives from a form or a spreadsheet cell. Elements are cast by the annotation; ``ValueError`` when one cannot be.
+    arrives from a form or a spreadsheet cell, read as :func:`parse_collection_text` says. Elements are cast by the
+    annotation; ``ValueError`` when one cannot be.
     """
+    inner, optional = _strip_optional(annotation)
+    args = get_args(inner)
     if isinstance(value, str) and not is_variable(value):
-        try:
-            value = ast.literal_eval(value)
-        except (ValueError, SyntaxError):
-            value = [item.strip() for item in value.split(",")]
+        if optional and value.strip() in ("", "None"):
+            return None
+        # with text in any position every item is kept as typed, and the casts below read the others from it
+        value = parse_collection_text(value, str if any(_strip_optional(arg)[0] is str for arg in args) else None)
     if value is None or is_variable(value):
         return value
     items = list(value) if isinstance(value, (list, tuple, set)) else [value]
-    args = get_args(_strip_optional(annotation)[0])
     if not args:
         return tuple(items)
     if len(args) == 2 and args[1] is Ellipsis:
@@ -369,7 +455,7 @@ def to_dict(value, annotation):
 
 
 def to_containers(function, kwargs):
-    """``kwargs`` for calling ``function``, each tuple- or dict-typed argument cast by its annotation."""
+    """``kwargs`` for calling ``function``, each list-, set-, tuple- or dict-typed argument cast by its annotation."""
     try:
         parameters = inspect.signature(function).parameters
     except (TypeError, ValueError):
@@ -381,6 +467,10 @@ def to_containers(function, kwargs):
             converted[name] = to_tuple(value, param.annotation)
         elif param is not None and is_dict_annotation(param.annotation):
             converted[name] = to_dict(value, param.annotation)
+        elif param is not None and is_list_annotation(param.annotation):
+            converted[name] = to_list(value, param.annotation)
+        elif param is not None and is_set_annotation(param.annotation):
+            converted[name] = to_set(value, param.annotation)
     return converted
 
 

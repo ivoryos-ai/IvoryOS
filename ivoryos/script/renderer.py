@@ -735,6 +735,9 @@ class ScriptRenderer:
             if isinstance(v, list) and ("tuple" in types or "Tuple" in types):
                 # a saved step holds a tuple as a list, since JSON has no tuples
                 val_str = repr(tuple(v))
+            elif isinstance(v, list) and ("set" in types or "Set" in types):
+                # likewise a set, in the order it was typed
+                val_str = "{" + ", ".join(repr(item) for item in v) + "}" if v else "set()"
             elif enum_type:
                 # the member by its key; a step saved before keys holds the value
                 class_name = enum_type.split(":", 1)[1].split(".")[-1]

@@ -5,7 +5,9 @@ import re
 import uuid
 from typing import Dict
 
-from ivoryos.parsers.structured_types import find_structured_type, iter_variables, load_structured_type
+from ivoryos.parsers.structured_types import (
+    find_structured_type, iter_variables, load_structured_type, parse_collection_text,
+)
 from ivoryos.parsers.introspection import _get_type_from_parameters
 
 class ScriptEditor:
@@ -74,17 +76,7 @@ class ScriptEditor:
                 continue
             if arg_type in ["list", "tuple", "set"]:
                 if isinstance(args[arg], str) and not args[arg].startswith("#"):
-                    convert_type = getattr(builtins, arg_type)
-                    try:
-                        output = ast.literal_eval(args[arg])
-                        if type(output) not in [list, tuple, set]:
-                            output = [output]
-                        args[arg] = convert_type(output)
-                    except ValueError:
-                        _list = ''.join(args[arg]).split(',')
-                        args[arg] = convert_type([s.strip() for s in _list])
-                    except SyntaxError:
-                        args[arg] = [item.strip() for item in args[arg].split(",") if item.strip()]
+                    args[arg] = getattr(builtins, arg_type)(parse_collection_text(args[arg]))
 
     def _sort(self, script_type):
         for i, action in enumerate(self.script.script_dict[script_type]):
