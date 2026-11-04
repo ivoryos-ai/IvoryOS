@@ -10,6 +10,7 @@ except ImportError:
     from typing_extensions import get_args, get_origin, Literal
 
 from ivoryos.utils.decorators import BUILDING_BLOCKS
+from ivoryos.utils.enums import _UNIONS
 
 
 UNSUPPORTED_PARAMETER_TYPES = ["BinaryIO", "TextIO", "BytesIO", "typing.IO"]
@@ -117,16 +118,16 @@ def _get_type_from_parameters(arg, parameters):
         if origin is Literal:
             return _literal_type_string(annotation)
 
-        if getattr(annotation, '__module__', '') == 'typing':
+        # Optional[X], Union[X, Y] and X | None. Python 3.14 made them one class, in `typing`
+        # and named Union, so this comes before anything that looks at the module or the name.
+        if origin in _UNIONS:
+            arg_type = [_resolve_type_string(i) for i in get_args(annotation)]
+        elif getattr(annotation, '__module__', '') == 'typing':
 
             if hasattr(annotation, '__origin__'):
                 origin = annotation.__origin__
-                if hasattr(origin, '_name') and origin._name in ["Optional", "Union"]:
-                    arg_type = [_resolve_type_string(i) for i in annotation.__args__]
-                elif hasattr(origin, '__name__'):
+                if hasattr(origin, '__name__'):
                     arg_type = origin.__name__
-        elif annotation.__module__ == 'types':
-            arg_type = [_resolve_type_string(i) for i in annotation.__args__]
         else:
             arg_type = annotation.__name__
     return arg_type

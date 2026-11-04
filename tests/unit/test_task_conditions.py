@@ -349,6 +349,19 @@ def test_an_optional_column_says_so_and_none_reads_back_as_none():
     assert cell_text(None) == "None" and cell_text("") == "" and cell_text(2.5) == "2.5"
 
 
+def test_a_run_must_give_every_input_no_step_sets():
+    from ivoryos.runtime.task_conditions import unset_input_problems
+
+    fields = ["temperature", "solvent"]
+    # a repeat run gives none; the optional one may stay unset and runs as None
+    assert unset_input_problems(fields, OPTIONAL_TYPES) == [
+        "'temperature' has no value: no step in the workflow sets it, so the run has to give it."]
+    # an API row has to name it; an empty value is the table's check
+    assert unset_input_problems(fields, OPTIONAL_TYPES, [{"temperature": 25}, {"solvent": "water"}]) == [
+        "Row 2, 'temperature': No value."]
+    assert unset_input_problems(fields, OPTIONAL_TYPES, [{"temperature": None}]) == []
+
+
 def test_a_queued_entry_can_leave_an_optional_input_empty():
     task = config_task()
     task["script"] = Script(author="tester", script_dict={"prep": [], "cleanup": [], "script": [{

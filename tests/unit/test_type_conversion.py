@@ -59,7 +59,7 @@ def test_bool_conversion(auth, test_deck):
 
 
 def test_list_conversion(auth, test_deck):
-    """Tests that list-like form input reaches the runner for conversion."""
+    """Tests that comma-separated form input reaches the runner as a list."""
     with patch('ivoryos.runtime.task_runner.TaskRunner._run_single_step', new_callable=AsyncMock) as mock_run:
         mock_run.return_value = {"success": True, "output": ['a', 'b', 'c']}
         response = auth.post(
@@ -68,7 +68,7 @@ def test_list_conversion(auth, test_deck):
             follow_redirects=True
         )
         assert response.status_code == 200
-        _assert_runner_called(mock_run, "list_method", {"arg": "a,b,c"})
+        _assert_runner_called(mock_run, "list_method", {"arg": ["a", "b", "c"]})
 
 
 def test_enum_conversion(auth, test_deck):

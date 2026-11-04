@@ -1,4 +1,6 @@
+import ast
 import json
+import sys
 import uuid
 from enum import Enum, EnumMeta
 from typing import Union, Any
@@ -19,11 +21,12 @@ from ivoryos.runtime.state import GlobalState
 
 from ivoryos.parsers.introspection import get_return_type
 from ivoryos.parsers.structured_types import (
-    find_structured_type, format_structured_value, has_variables, is_dict_annotation, is_variable, load_structured_type,
-    parse_structured_value, render_python, structured_schema, structured_template, validate_structured_value,
+    find_structured_type, format_structured_value, has_variables, is_dict_annotation, is_list_annotation,
+    is_set_annotation, is_tuple_annotation, is_variable, load_structured_type, parse_structured_value, render_python,
+    structured_schema, structured_template, to_bool, to_dict, to_list, to_set, to_tuple, validate_structured_value,
 )
 from ivoryos.runtime.safety import describe as describe_limit, guard
-from ivoryos.utils.enums import enum_class_of, find_member
+from ivoryos.utils.enums import _UNIONS, enum_class_of, find_member
 
 try:
     from typing import get_origin, get_args
@@ -96,7 +99,7 @@ def is_list_type(ann):
     if 'typing.list' in s: return True
 
     # Check Union
-    if origin is Union:
+    if origin in _UNIONS:
          args = get_args(ann)
          return any(is_list_type(arg) for arg in args)
 
@@ -233,6 +236,16 @@ class VariableOrIntField(Field):
             raise ValueError(self.gettext("Not a valid integer value.")) from exc
 
 
+class BoolCheckboxField(BooleanField):
+    """The Instruments page's bool: a ticked box sends ``y``. A script posting ``data={"value": False}`` sends
+    the text ``False``, which WTForms read as True."""
+    false_values = (False, "false", "False", "")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.type = "BooleanField"  # the templates draw a checkbox for this type
+
+
 class VariableOrBoolField(Field):
     widget = TextInput()
     false_values = (False, "false", "", "False", "f", "F", "n")
@@ -252,6 +265,8 @@ class VariableOrBoolField(Field):
         if isinstance(value, str) and value.startswith("#"):
             self.data = value
             return value
+        # Known bug, left for now: None is not a false value, so an untouched `Optional[bool] = None`
+        # is prefilled as True and a step saved without touching it calls the driver with True.
         if value in self.false_values:
             self.data = False
         else:
@@ -269,10 +284,16 @@ class VariableOrBoolField(Field):
                 if not self.script.editing_type == "script":
                     raise ValueError(self.gettext("Variable is not supported in prep/cleanup"))
                 self.data = valuelist[0]
-            elif value in self.false_values:
-                self.data = False
-            else:
-                self.data = True
+                return
+            variable, _ = find_variable(value, self.script) if self.script else (None, None)
+            if variable:
+                self.data = variable
+                return
+            try:
+                self.data = to_bool(value)
+            except ValueError as exc:
+                self.data = None
+                raise ValueError(self.gettext("Not a valid boolean value: use True or False.")) from exc
 
     def _value(self):
 
@@ -357,8 +378,11 @@ class FlexibleLiteralField(StringField):
                 self.data = None
                 return
 
-            if key in self.choices:
-                self.data = key
+            # the option as text, also from a JSON body, which Flask-WTF hands every form on the page
+            if str(key) in self.choices:
+                self.data = str(key)
+            elif not isinstance(key, str):
+                raise ValueError(self.gettext("Not a valid choice"))
             elif key.startswith("#"):
                 if self.script is None or not self.script.editing_type == "script":
                     raise ValueError(self.gettext("Variable is not supported in prep/cleanup"))
@@ -406,6 +430,9 @@ class StructuredField(Field):
             elif isinstance(value, str):
                 value = value.strip()
             validate_structured_value(value, self.annotation)
+            # a key or value that is not its type is refused here; the step keeps what was typed and the
+            # driver gets it cast (to_dict)
+            to_dict(value, self.annotation)
         except ValueError as exc:
             self.data = None
             raise ValueError(str(exc)) from exc
@@ -417,6 +444,67 @@ class StructuredField(Field):
 
 
 STRUCTURED_PLACEHOLDER = 'JSON, e.g. {"key": value}; #variables allowed for any value'
+
+
+class CollectionField(VariableOrStringField):
+    """
+    A list, set or tuple argument, typed as ``a, b`` or as Python (``['a', 'b']``). What cannot be its type is refused
+    here, and the field holds a list either way: JSON has neither sets nor tuples, so the driver gets those when it is
+    called (``to_set``, ``to_tuple``).
+    """
+
+    def __init__(self, label='', validators=None, annotation=list, script=None, **kwargs):
+        super().__init__(label, validators, script=script, **kwargs)
+        self.annotation = annotation
+
+    def _value(self):
+        if self.raw_data:
+            return str(self.raw_data[0])
+        if self.data is None:
+            return ""
+        # a set default as a list: an empty set's text, set(), could not be typed back in
+        return str(list(self.data) if isinstance(self.data, (set, frozenset)) else self.data)
+
+    def process_formdata(self, valuelist):
+        if not valuelist:
+            return
+        value = valuelist[0] if len(valuelist) == 1 else valuelist  # JSON sends a list as several values
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                self.data = None
+                return
+            if is_variable(value):
+                if self.script is None:
+                    raise ValueError(self.gettext("Variables are only supported when designing a workflow"))
+                if not self.script.editing_type == "script":
+                    raise ValueError(self.gettext("Variable is not supported in prep/cleanup"))
+                self.data = value
+                return
+            variable = find_variable(value, self.script)[0] if self.script else None
+            if variable:
+                self.data = f"#{variable}"
+                return
+        try:
+            convert = to_set if is_set_annotation(self.annotation) else (
+                to_tuple if is_tuple_annotation(self.annotation) else to_list)
+            items = convert(value, self.annotation)
+        except ValueError as exc:
+            self.data = None
+            raise ValueError(str(exc)) from exc
+        self.data = None if items is None else list(items)
+
+
+COLLECTION_PLACEHOLDER = "a, b or Python syntax, e.g. ['a', 'b']"
+
+
+def _collection_annotation(annotation):
+    """The annotation a :class:`CollectionField` casts by, or None. A name recorded for a saved step, or a string
+    annotation, has no item type to cast by."""
+    if isinstance(annotation, str):
+        return {"list": list, "List": list, "set": set, "Set": set, "tuple": tuple, "Tuple": tuple}.get(annotation)
+    is_collection = is_list_annotation(annotation) or is_set_annotation(annotation) or is_tuple_annotation(annotation)
+    return annotation if is_collection else None
 
 
 def _is_output_reference(value):
@@ -528,7 +616,7 @@ def parse_annotation(annotation):
     if annotation is Any:
         return [str], True  # fallback: accept any string, optional
 
-    if origin is Union:
+    if origin in _UNIONS:
         types = list(set(args))
         is_optional = type(None) in types
         non_none_types = [t for t in types if t is not type(None)]
@@ -554,7 +642,7 @@ def create_form_for_method(method, autofill, script=None, design=True, limits=No
         int: (VariableOrIntField if design else IntegerField, 'Enter integer value'),
         float: (VariableOrFloatField if design else FloatField, 'Enter numeric value'),
         str: (VariableOrStringField if design else StringField, 'Enter text'),
-        bool: (VariableOrBoolField if design else BooleanField, 'Empty for false')
+        bool: (VariableOrBoolField if design else BoolCheckboxField, 'Empty for false')
     }
     sig = method if type(method) is inspect.Signature else inspect.signature(method)
 
@@ -602,6 +690,11 @@ def create_form_for_method(method, autofill, script=None, design=True, limits=No
                 field_kwargs["default"] = structured_template(param.annotation)
             extra_kwargs = {"annotation": param.annotation}
             extra_render_kwargs = _structured_render_kwargs(field_kwargs["default"], param.annotation)
+
+        elif _collection_annotation(param.annotation) is not None:
+            field_class = CollectionField
+            placeholder_text = COLLECTION_PLACEHOLDER
+            extra_kwargs = {"annotation": _collection_annotation(param.annotation)}
 
         elif _is_enum_type(param.annotation):
             enum_class = _unwrap_enum_type(param.annotation)
@@ -704,7 +797,7 @@ def _is_enum_type(tp):
         return True
 
     # Optional/Union case → unwrap inner types
-    if origin is Union:
+    if origin in _UNIONS:
         return any(
             isinstance(arg, type) and issubclass(arg, Enum)
             for arg in get_args(tp)
@@ -714,7 +807,7 @@ def _is_enum_type(tp):
     return False
 
 def _unwrap_enum_type(tp):
-    from typing import get_origin, get_args, Union
+    from typing import get_origin, get_args
     from enum import Enum
 
     # Bare Enum
@@ -723,7 +816,7 @@ def _unwrap_enum_type(tp):
 
     # Optional/Union conversion
     origin = get_origin(tp)
-    if origin is Union:
+    if origin in _UNIONS:
         for arg in get_args(tp):
             if arg is not type(None) and isinstance(arg, type) and issubclass(arg, Enum):
                 return arg
@@ -731,7 +824,7 @@ def _unwrap_enum_type(tp):
     return None
 
 def _is_literal_type(tp):
-    from typing import get_origin, get_args, Union
+    from typing import get_origin, get_args
     try:
         from typing import Literal
     except ImportError:
@@ -739,12 +832,12 @@ def _is_literal_type(tp):
     origin = get_origin(tp)
     if origin is Literal:
         return True
-    if origin is Union:
+    if origin in _UNIONS:
         return any(get_origin(arg) is Literal for arg in get_args(tp))
     return False
 
 def _unwrap_literal_args(tp):
-    from typing import get_origin, get_args, Union
+    from typing import get_origin, get_args
     try:
         from typing import Literal
     except ImportError:
@@ -752,7 +845,7 @@ def _unwrap_literal_args(tp):
     origin = get_origin(tp)
     if origin is Literal:
         return get_args(tp)
-    if origin is Union:
+    if origin in _UNIONS:
         for arg in get_args(tp):
             if get_origin(arg) is Literal:
                 return get_args(arg)
@@ -887,7 +980,7 @@ def create_form_from_action(action: dict, script=None, design=True):
         "int": (VariableOrIntField if design else IntegerField, 'Enter integer value'),
         "float": (VariableOrFloatField if design else FloatField, 'Enter numeric value'),
         "str": (VariableOrStringField if design else StringField, 'Enter text'),
-        "bool": (VariableOrBoolField if design else BooleanField, 'Empty for false')
+        "bool": (VariableOrBoolField if design else BoolCheckboxField, 'Empty for false')
     }
 
     # Use explicitly saved order if available, otherwise fallback (e.g. for old actions)
@@ -953,11 +1046,19 @@ def create_form_from_action(action: dict, script=None, design=True):
         param_type = param_type if type(param_type) is str else f"{param_type}"
         extra_kwargs = {}
         extra_render_kwargs = {}
+        # the item type from the driver, when it is there to ask; a saved step records only "list"
+        collection_annotation = _collection_annotation(param_type)
+        if collection_annotation is not None and sig and name in sig.parameters:
+            collection_annotation = _collection_annotation(sig.parameters[name].annotation) or collection_annotation
         if structured_type is not None:
             field_class = StructuredField
             placeholder_text = STRUCTURED_PLACEHOLDER
             extra_kwargs = {"annotation": load_structured_type(structured_type)}
             extra_render_kwargs = _structured_render_kwargs(value, extra_kwargs["annotation"])
+        elif collection_annotation is not None:
+            field_class = CollectionField
+            placeholder_text = COLLECTION_PLACEHOLDER
+            extra_kwargs = {"annotation": collection_annotation}
         elif param_type.startswith("Enum:"):
             try:
                 _, full_path = param_type.split(":", 1)
@@ -1158,27 +1259,50 @@ def create_builtin_form(logic_type, script):
     return BuiltinFunctionForm
 
 
+# what a workflow function's annotations may be built from: `int`, `Optional[Speed]`, `Literal['a', 1]`, `int | None`
+_TYPE_NODES = (ast.Name, ast.Attribute, ast.Subscript, ast.Constant, ast.Tuple, ast.List, ast.Load, ast.BitOr)
+if sys.version_info < (3, 9):  # the trees of Python 3.7 and 3.8
+    _TYPE_NODES += (ast.Index, ast.Str, ast.Num, ast.NameConstant)
+
+
+def _check_workflow_definition(function_string):
+    """Refuse a rendered workflow that would run more than imports and type annotations when defined.
+
+    Its parameter annotations come from the arg types saved in the workflow, so a workflow file written by hand
+    could put any code there, and defining the function runs it.
+    """
+    for node in ast.parse(function_string).body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or node.decorator_list:
+            raise ValueError("a workflow can only define its function")
+        args = node.args
+        params = getattr(args, "posonlyargs", []) + args.args + args.kwonlyargs + [args.vararg, args.kwarg]
+        header = [p.annotation for p in params if p is not None and p.annotation is not None]
+        header += args.defaults + [d for d in args.kw_defaults if d is not None]
+        header += [node.returns] if node.returns is not None else []
+        for part in header:
+            for sub in ast.walk(part):
+                if not isinstance(sub, _TYPE_NODES) and not (isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.BitOr)):
+                    raise ValueError(f"workflow '{node.name}': a parameter type is not a type")
+
+
 def get_method_from_workflow(function_string, func_name=None):
     """Creates a function from a string and assigns it a new name."""
 
-    namespace = {}
-    
-    exec(function_string, globals(), namespace)  # Execute the string in a safe namespace
-    
-    if func_name and func_name in namespace:
-        return namespace[func_name]
-    
-    # Fallback to finding the first function if name not provided or found
-    # But if imports are present, next(iter) might be an module.
-    # We should prefer functions.
-    for key, val in namespace.items():
-        if inspect.isfunction(val):
-             return val
+    _check_workflow_definition(function_string)
+    # One namespace for the imports and the function: Python 3.14 reads annotations when they are asked for, from
+    # the function's globals, and imports kept apart as locals were not found there.
+    namespace = dict(globals())
+    exec(function_string, namespace)  # imports and the function definition only, see above
+    defined = {name: value for name, value in namespace.items()
+               if inspect.isfunction(value) and value.__code__.co_filename == "<string>"}
 
-    # Final fallback (original behavior)
-    func_name = next(iter(namespace))
-    # Get the function name dynamically
-    return namespace[func_name]
+    if func_name and func_name in defined:
+        return defined[func_name]
+
+    # Fallback to the first function if name not provided or found
+    return next(iter(defined.values()))
 
 
 def create_workflow_forms(script, autofill: bool = False, design: bool = False):

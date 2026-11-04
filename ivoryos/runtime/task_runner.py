@@ -12,7 +12,13 @@ from datetime import datetime
 from ivoryos.utils.decorators import BUILDING_BLOCKS
 from ivoryos.models import db, SingleStep
 from ivoryos.runtime.safety import guard
-from ivoryos.utils.enums import enum_class_of, find_member
+from ivoryos.parsers.structured_types import (
+    is_dict_annotation, is_list_annotation, is_scalar_annotation, is_set_annotation, is_tuple_annotation, to_dict,
+    to_list, to_scalar, to_set, to_tuple,
+)
+from ivoryos.utils.enums import (
+    NOT_AN_OPTION, enum_class_of, find_member, find_option, literal_options_of, setter_annotation,
+)
 from ivoryos.runtime.state import GlobalState
 
 global_state = GlobalState()
@@ -130,7 +136,8 @@ class TaskRunner:
                      # Copy signature from fset but remove self
                      try:
                          sig = inspect.signature(attr.fset)
-                         params = [p for n, p in sig.parameters.items() if n != 'self']
+                         params = [p.replace(annotation=setter_annotation(attr))
+                                   for n, p in sig.parameters.items() if n != 'self']
                          setter.__signature__ = sig.replace(parameters=params)
                      except Exception:
                          # Fallback if signature extraction fails
@@ -245,36 +252,40 @@ class TaskRunner:
             if name in sig.parameters:
                 param = sig.parameters[name]
                 enum_class = enum_class_of(param.annotation)
+                options = literal_options_of(param.annotation)
                 if enum_class is not None:
                     # a key or a value, from the form or JSON: the driver gets the member
                     member = find_member(enum_class, value)
-                    converted[name] = member if member is not None else value
+                    if member is None and value is not None:
+                        raise ValueError(f"{value!r} is not one of {list(enum_class.__members__)}")
+                    converted[name] = member
+                elif options is not None:
+                    # the option as text from the form, or as it is from JSON: the driver gets the option
+                    option = find_option(options, value)
+                    if option is NOT_AN_OPTION and value is not None:
+                        raise ValueError(f"{value!r} is not one of {list(options)}")
+                    converted[name] = None if option is NOT_AN_OPTION else option
+                elif is_tuple_annotation(param.annotation):
+                    converted[name] = to_tuple(value, param.annotation)
+                elif is_dict_annotation(param.annotation):
+                    converted[name] = to_dict(value, param.annotation)
+                elif is_list_annotation(param.annotation):
+                    converted[name] = to_list(value, param.annotation)
+                elif is_set_annotation(param.annotation):
+                    converted[name] = to_set(value, param.annotation)
+                elif is_scalar_annotation(param.annotation):
+                    # never guessed from the text: `a, b` is not a list to a str, and 2.5 is not an int
+                    converted[name] = to_scalar(value, param.annotation)
                 # Check for explicit typing
                 elif param.annotation != inspect.Parameter.empty:
                     # If explicitly typed, we still want to try smart conversion if the value is a string
                     
                     if isinstance(value, str):
                        val = convert_guess(value)
-                       
-                       # Helper to check if target is a list type
-                       target_type = param.annotation
-                       is_list_target = target_type is list
-                       if not is_list_target:
-                           # Check for typing.List (e.g. List[int])
-                           origin = getattr(target_type, "__origin__", None)
-                           if origin is list:
-                               is_list_target = True
 
-                       # Wrap single items or cast tuples to list
-                       if is_list_target:
-                           if isinstance(val, tuple):
-                               val = list(val)
-                           elif not isinstance(val, list):
-                               val = [val]
-                       
-                       # Try to cast to target type if possible (e.g. valid for int, float, str, but fails for typing.List)
+                       # Try to cast to target type if possible (fails for typing generics)
                        try:
-                           converted[name] = target_type(val)
+                           converted[name] = param.annotation(val)
                        except Exception:
                            # Casting failed (common for typing generics), just use the guessed/casts val
                            converted[name] = val

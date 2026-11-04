@@ -1,4 +1,5 @@
 import ast
+import inspect
 import re
 
 try:
@@ -11,7 +12,9 @@ from ivoryos.script.models import Script
 from ivoryos.script.editor import ScriptEditor
 from ivoryos.utils.enums import enum_class_from_type, find_member
 from ivoryos.models.base import db
-from ivoryos.parsers.structured_types import find_structured_type, has_variables, load_structured_type, render_python
+from ivoryos.parsers.structured_types import (
+    find_structured_type, has_variables, is_dict_annotation, load_structured_type, render_python, to_dict,
+)
 
 class ScriptRenderer:
     def __init__(self, script: Script):
@@ -311,15 +314,14 @@ class ScriptRenderer:
     def _literal_annotation(param_type):
         """``Literal:a,1`` as the annotation it was recorded from: ``Literal['a', 1]``."""
         _, literal_args_str = param_type.split(":", 1)
-        args_list = []
-        for a in literal_args_str.split(","):
-            if a.isdigit() or (a.startswith("-") and a[1:].isdigit()):
-                args_list.append(a)
-            elif a.replace(".", "", 1).isdigit() and a.count(".") < 2:
-                args_list.append(a)
-            else:
-                args_list.append(f"'{a}'")
-        return f"Literal[{', '.join(args_list)}]"
+        return f"Literal[{', '.join(ScriptRenderer._literal_source(a) for a in literal_args_str.split(','))}]"
+
+    @staticmethod
+    def _literal_source(option):
+        """One recorded Literal option, which is text, as Python source: ``1.0``, ``True``, ``'a'``."""
+        if option in ("True", "False", "None") or option.lstrip("-").replace(".", "", 1).isdigit():
+            return option
+        return repr(option)
 
     def _generate_function_header(self, run_name, stype, is_async, batch=False):
         configure, config_type = self.editor.config(stype)
@@ -635,9 +637,14 @@ class ScriptRenderer:
         is_property_setter = False
         is_property_getter = False
         property_name = None
-        
+        # the method's annotations, for what a saved step cannot hold as the driver gets it: a dict's int keys
+        annotations = {}
+
         if interface_schema and instrument in interface_schema:
             inst_data = interface_schema[instrument]
+            signature = (inst_data.get(action) or {}).get("signature")
+            if isinstance(signature, inspect.Signature):
+                annotations = {name: param.annotation for name, param in signature.parameters.items()}
             if action.endswith("_(setter)"):
                 prop_candidate = action[:-9]
                 if prop_candidate in inst_data and inst_data[prop_candidate].get('is_property'):
@@ -652,18 +659,12 @@ class ScriptRenderer:
             if isinstance(args, dict):
                  val = args.get('value')
                  if val is not None:
-                      if isinstance(val, str):
-                           if val.startswith("#"):
-                                arg_str = val[1:]
-                           else:
-                                arg_str = f"'{val}'"
-                      else:
-                           arg_str = str(val)
+                      arg_str = self._arg_source("value", val, arg_types)
             single_line = f"{async_str}{instrument}.{property_name} = {arg_str}"
         elif is_property_getter:
             single_line = f"{async_str}{instrument}.{property_name}"
         elif isinstance(args, dict) and args != {}:
-            args_str = self._process_dict_args(args, arg_types)
+            args_str = self._process_dict_args(args, arg_types, annotations)
             single_line = f"{async_str}{function_call}(**{args_str})"
         elif isinstance(args, str):
             single_line = f"{function_call} = {args}"
@@ -702,34 +703,51 @@ class ScriptRenderer:
 
         return output_code, indent_unit
 
-    def _process_dict_args(self, args, arg_types=None):
-        items = []
-        for k, v in args.items():
-             val_str = repr(v)
-             if isinstance(v, str) and v.startswith("#"):
-                 val_str = v[1:]
-             elif arg_types and self._is_structured_value(v, arg_types.get(k)):
-                 val_str = render_python(v, load_structured_type(arg_types[k]))
-             elif isinstance(v, dict):
-                 if v and isinstance(next(iter(v)), str):
-                      key = next(iter(v))
-                      if v[key] == "function_output":
-                           val_str = key
-                 else:
-                      pass
-             elif arg_types and k in arg_types and v is not None:
-                 type_str = arg_types[k]
-                 # an Optional[Enum] is recorded as a list, e.g. ["Enum:deck.Solvent", "NoneType"]
-                 types = type_str if isinstance(type_str, list) else [type_str]
-                 enum_type = next((t for t in types if isinstance(t, str) and t.startswith("Enum:")), None)
-                 if enum_type:
-                     # the member by its key; a step saved before keys holds the value
-                     class_name = enum_type.split(":", 1)[1].split(".")[-1]
-                     enum_class = enum_class_from_type(enum_type)
-                     member = find_member(enum_class, v) if enum_class else None
-                     val_str = f"{class_name}.{member.name}" if member else f"{class_name}[{repr(v)}]"
-             items.append(f"'{k}': {val_str}")
+    def _process_dict_args(self, args, arg_types=None, annotations=None):
+        items = [f"'{k}': {self._arg_source(k, v, arg_types, (annotations or {}).get(k))}" for k, v in args.items()]
         return "{" + ", ".join(items) + "}"
+
+    def _arg_source(self, k, v, arg_types=None, annotation=None):
+        """One saved argument as Python source; ``annotation`` is the method's, when the deck is there to ask."""
+        is_output = isinstance(v, dict) and len(v) == 1 and next(iter(v.values())) == "function_output"
+        if isinstance(v, dict) and not is_output and is_dict_annotation(annotation):
+            try:
+                # keys and values as the driver gets them: a saved step's {"1": 2} is {1: 2.0}
+                v = to_dict(v, annotation)
+            except ValueError:
+                pass  # written as saved; the run reports it
+        val_str = repr(v)
+        if isinstance(v, str) and v.startswith("#"):
+            val_str = v[1:]
+        elif arg_types and self._is_structured_value(v, arg_types.get(k)):
+            val_str = render_python(v, load_structured_type(arg_types[k]))
+        elif isinstance(v, dict):
+            if v and isinstance(next(iter(v)), str):
+                key = next(iter(v))
+                if v[key] == "function_output":
+                    val_str = key
+        elif arg_types and k in arg_types and v is not None:
+            type_str = arg_types[k]
+            # an Optional[Enum] is recorded as a list, e.g. ["Enum:deck.Solvent", "NoneType"]
+            types = type_str if isinstance(type_str, list) else [type_str]
+            enum_type = next((t for t in types if isinstance(t, str) and t.startswith("Enum:")), None)
+            literal_type = next((t for t in types if isinstance(t, str) and t.startswith("Literal:")), None)
+            if isinstance(v, list) and ("tuple" in types or "Tuple" in types):
+                # a saved step holds a tuple as a list, since JSON has no tuples
+                val_str = repr(tuple(v))
+            elif isinstance(v, list) and ("set" in types or "Set" in types):
+                # likewise a set, in the order it was typed
+                val_str = "{" + ", ".join(repr(item) for item in v) + "}" if v else "set()"
+            elif enum_type:
+                # the member by its key; a step saved before keys holds the value
+                class_name = enum_type.split(":", 1)[1].split(".")[-1]
+                enum_class = enum_class_from_type(enum_type)
+                member = find_member(enum_class, v) if enum_class else None
+                val_str = f"{class_name}.{member.name}" if member else f"{class_name}[{repr(v)}]"
+            elif literal_type and isinstance(v, str):
+                # a saved step holds the option as text
+                val_str = self._literal_source(v)
+        return val_str
 
     def _get_next_action(self, stype, index, action_list=None):
         lst = action_list if action_list is not None else self.script.script_dict[stype]

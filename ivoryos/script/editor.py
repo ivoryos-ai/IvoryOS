@@ -5,7 +5,9 @@ import re
 import uuid
 from typing import Dict
 
-from ivoryos.parsers.structured_types import find_structured_type, iter_variables, load_structured_type
+from ivoryos.parsers.structured_types import (
+    find_structured_type, iter_variables, load_structured_type, parse_collection_text,
+)
 from ivoryos.parsers.introspection import _get_type_from_parameters
 
 class ScriptEditor:
@@ -41,25 +43,6 @@ class ScriptEditor:
                 if action['uuid'] == int(uuid_val):
                     return action
 
-    def _convert_type(self, args, arg_types):
-        if arg_types in ["list", "tuple", "set"]:
-            try:
-                args = ast.literal_eval(args)
-                return args
-            except Exception:
-                pass
-        if type(arg_types) is not list:
-            arg_types = [arg_types]
-        for arg_type in arg_types:
-            if isinstance(arg_type, str) and arg_type.startswith("Enum:"):
-                 continue
-            try:
-                args = eval(f"{arg_type}('{args}')")
-                return
-            except Exception:
-                pass
-        raise TypeError(f"Input type error: cannot convert '{args}' to {arg_type}.")
-
     def update_by_uuid(self, uuid, args, output, batch_action=False, consolidate_batch_args=False):
         action = self.find_by_uuid(uuid)
         if not action:
@@ -93,17 +76,7 @@ class ScriptEditor:
                 continue
             if arg_type in ["list", "tuple", "set"]:
                 if isinstance(args[arg], str) and not args[arg].startswith("#"):
-                    convert_type = getattr(builtins, arg_type)
-                    try:
-                        output = ast.literal_eval(args[arg])
-                        if type(output) not in [list, tuple, set]:
-                            output = [output]
-                        args[arg] = convert_type(output)
-                    except ValueError:
-                        _list = ''.join(args[arg]).split(',')
-                        args[arg] = convert_type([s.strip() for s in _list])
-                    except SyntaxError:
-                        args[arg] = [item.strip() for item in args[arg].split(",") if item.strip()]
+                    args[arg] = getattr(builtins, arg_type)(parse_collection_text(args[arg]))
 
     def _sort(self, script_type):
         for i, action in enumerate(self.script.script_dict[script_type]):
@@ -254,7 +227,8 @@ class ScriptEditor:
                     try:
                         converted = ast.literal_eval(value)
                         if valid_types:
-                            if type(converted).__name__ in valid_types:
+                            # text that parses to text had quotes, and they are part of what was typed
+                            if type(converted).__name__ in valid_types and not isinstance(converted, str):
                                 kwargs[key] = converted
                                 is_converted = True
                         else:

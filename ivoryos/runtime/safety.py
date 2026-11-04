@@ -121,11 +121,11 @@ def _is_reference(value):
 def check_value(constraint, value):
     """Why ``value`` breaks ``constraint``: ``[(the value as shown, the reason)]``.
 
-    A list is checked element by element. Nothing given and ``#references`` are skipped: the
-    first is somebody else's error, the second is checked once the run has put a value there.
+    A list is checked element by element, and so is a set. Nothing given and ``#references`` are
+    skipped: the first is somebody else's error, the second is checked once the run has put a value there.
     """
     problems = []
-    for item in value if isinstance(value, (list, tuple)) else [value]:
+    for item in value if isinstance(value, (list, tuple, set)) else [value]:
         if item is None or item == "" or _is_reference(item):
             continue
         shown = _fmt(item)

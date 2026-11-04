@@ -1,18 +1,20 @@
 import re
 import asyncio
+import inspect
 from datetime import datetime
 from typing import Any, Dict, List
 
 from ivoryos.runtime.control_flow import validate_and_nest_control_flow
 from ivoryos.runtime.run_events import ERROR, INTERVENTION
 from ivoryos.runtime.safety import SafetyViolation, guard
-from ivoryos.utils.enums import to_members
+from ivoryos.utils.enums import setter_annotation, to_members
 from ivoryos.runtime.runner_runtime import HumanInterventionRequired, ensure_deck, global_state, pause
 from ivoryos.models import WorkflowStep, db
-from ivoryos.parsers.structured_types import substitute_variables
+from ivoryos.parsers.structured_types import substitute_variables, to_containers
 from ivoryos.parsers.returns import store_return_value
 from ivoryos.parsers.serialize import sanitize_for_json
 from ivoryos.utils.decorators import BUILDING_BLOCKS
+from ivoryos.utils.expressions import evaluate
 
 
 class ScriptRunnerStepMixin:
@@ -396,8 +398,9 @@ class ScriptRunnerStepMixin:
                         attr = getattr(component, action)
 
                         if callable(attr):
-                            # a step stores an Enum argument's key; the driver gets the member
-                            call_args = to_members(attr, substituted_args)
+                            # a step stores an Enum argument's key and a tuple as a list; the driver gets
+                            # the member and the tuple
+                            call_args = to_containers(attr, to_members(attr, substituted_args))
                             # Execute and handle return value
                             if step.get("coroutine", False):
                                 result = await attr(**call_args)
@@ -406,7 +409,7 @@ class ScriptRunnerStepMixin:
                         else:
                             # Handle property setter/getter
                             if "value" in substituted_args:
-                                setattr(component, action, substituted_args["value"])
+                                setattr(component, action, self._setter_value(component, action, substituted_args["value"]))
                                 result = substituted_args["value"]
                             else:
                                 result = attr
@@ -429,7 +432,7 @@ class ScriptRunnerStepMixin:
                     method_collection = BUILDING_BLOCKS[instrument]
                     if action in method_collection.keys():
                         method = method_collection[action]["func"]
-                        call_args = to_members(method, substituted_args)
+                        call_args = to_containers(method, to_members(method, substituted_args))
 
                         # Execute and handle return value
                         # print(step.get("coroutine", False))
@@ -448,7 +451,7 @@ class ScriptRunnerStepMixin:
                         raise ValueError(f"Unknown instrument '{instrument}'")
                     guard.enforce(instrument, action, substituted_args)
                     method = getattr(module, action)
-                    call_args = to_members(method, substituted_args)
+                    call_args = to_containers(method, to_members(method, substituted_args))
                     if step.get("coroutine", False):
                         result = await method(**call_args)
                     else:
@@ -506,12 +509,28 @@ class ScriptRunnerStepMixin:
         return await self._execute_action(step, context, arg_contexts=arg_contexts, phase_id=phase_id, step_index=step_index, section_name=section_name, override_args=override_args)
 
     @staticmethod
+    def _setter_value(component, name, value):
+        """A step's value for a property, as the driver gets it from a method: the member, option or tuple."""
+        prop = getattr(type(component), name, None)
+        if not isinstance(prop, property) or prop.fset is None:
+            return value
+
+        def setter(value):
+            pass
+
+        setter.__signature__ = inspect.Signature([inspect.Parameter(
+            "value", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=setter_annotation(prop))])
+        return to_containers(setter, to_members(setter, {"value": value}))["value"]
+
+    @staticmethod
     def _substitute_params(args: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """Substitute parameter placeholders like #param_1 with actual values."""
         substituted = {}
 
         def substitute_vars(value: str, context: Dict[str, Any]) -> Any:
             # Replace placeholders of the form `#var` in a string with values from a context.
+            # Known bug, left for now: any `#` followed by a word character is taken for a variable, so a
+            # text argument like `sample #1` raises KeyError here and ends the run before the call.
             def replacer(match):
                 var_name = match.group(1)
                 if var_name not in context:
@@ -551,8 +570,8 @@ class ScriptRunnerStepMixin:
                 eval_context[key] = value
 
             try:
-                # Safe evaluation with variables in scope
-                result = eval(substituted, {"__builtins__": {}}, eval_context)
+                # Plain expressions only, with variables in scope (see ivoryos.utils.expressions)
+                result = evaluate(substituted, eval_context)
                 return bool(result)
             except Exception as e:
                 raise ValueError(f"Error evaluating condition '{condition_str}': {e}")
@@ -654,15 +673,15 @@ class ScriptRunnerStepMixin:
                         if arg_type == "float":
                             try:
                                 # Evaluate as expression (e.g., "10.0+10" becomes 20.0)
-                                result = eval(substituted_value, {"__builtins__": {}}, {})
+                                result = evaluate(substituted_value)
                                 context[var_name] = float(result)
                             except:
-                                # If eval fails, try direct conversion
+                                # If evaluating fails, try direct conversion
                                 context[var_name] = float(substituted_value)
 
                         elif arg_type == "int":
                             try:
-                                result = eval(substituted_value, {"__builtins__": {}}, {})
+                                result = evaluate(substituted_value)
                                 context[var_name] = int(result)
                             except:
                                 context[var_name] = int(substituted_value)
@@ -670,7 +689,7 @@ class ScriptRunnerStepMixin:
                         elif arg_type == "bool":
                             try:
                                 # Evaluate boolean expressions
-                                result = eval(substituted_value, {"__builtins__": {}}, {})
+                                result = evaluate(substituted_value)
                                 context[var_name] = bool(result)
                             except:
                                 context[var_name] = substituted_value.lower() in ['true', '1', 'yes']
@@ -683,10 +702,10 @@ class ScriptRunnerStepMixin:
                                     or substituted_value.startswith('"') or substituted_value.startswith("'"):
                                 try:
                                     # Try to evaluate as expression
-                                    result = eval(substituted_value, {"__builtins__": {}}, context)
+                                    result = evaluate(substituted_value, context)
                                     context[var_name] = result
                                 except:
-                                    # If eval fails, store as string
+                                    # If evaluating fails, store as string
                                     context[var_name] = substituted_value
                             else:
                                 context[var_name] = substituted_value
