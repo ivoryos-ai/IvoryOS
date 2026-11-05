@@ -10,6 +10,22 @@ from ivoryos.parsers.structured_types import (
 )
 from ivoryos.parsers.introspection import _get_type_from_parameters
 
+_REFERENCE = re.compile(r"#([A-Za-z_]\w*)")
+
+
+def statement_expression(statement):
+    """A variable step's statement or a condition as Python, its #name references as names (`#name + "_A"` is
+    `name + "_A"`), or None for text that is no expression even then, such as `vial #A1`."""
+    if not isinstance(statement, str):
+        return None
+    expression = _REFERENCE.sub(r"\1", statement)
+    try:
+        ast.parse(expression.strip(), mode="eval")
+    except SyntaxError:
+        return None
+    return expression
+
+
 class ScriptEditor:
     def __init__(self, script):
         self.script = script
@@ -104,12 +120,23 @@ class ScriptEditor:
     def add_variable(self, statement, variable, variable_type, insert_position=None):
         variable = self.validate_function_name(variable)
         convert_type = getattr(builtins, variable_type)
+        # a plain value is stored as its type; an expression such as `x * 2` or `x > 2` is kept as typed and
+        # evaluated when the step runs, as a math step's is, so a variable does what math did
         if isinstance(statement, str) and statement.startswith("#"):
             pass
         elif variable_type == "bool":
-            statement = True if statement.lower() in ["true", "y", "t", "yes"] else False
+            word = statement.strip().lower()
+            if word in ["true", "y", "t", "yes"]:
+                statement = True
+            elif word in ["false", "n", "f", "no", ""]:
+                statement = False
         else:
-            statement = convert_type(statement)
+            try:
+                statement = convert_type(statement)
+            except ValueError:
+                # neither the type nor an expression, such as `1.2.3`: refused here, not when the run gets to it
+                if statement_expression(statement) is None:
+                    raise
         current_len = len(self.currently_editing_script)
         uid = uuid.uuid4().fields[-1]
         action = {"id": current_len + 1, "instrument": 'variable', "action": variable,
@@ -347,13 +374,16 @@ class ScriptEditor:
                             configure.append(key)
                             config_type_dict[key] = action['arg_types']
                 else:
-                    if action['instrument'] == "math_variable":
+                    # each #name in an expression or condition is an input, not `x > 5` after a leading #
+                    if action['instrument'] == "math_variable" or (
+                            action['instrument'] in ("variable", "if", "while")
+                            and statement_expression(args.get('statement')) is not None):
                         pattern = r"#([A-Za-z_][A-Za-z0-9_]*)"
                         vars_found = re.findall(pattern, args['statement'])
                         for key in vars_found:
                             if key not in (*variables, *configure):
                                 configure.append(key)
-                                config_type_dict[key] = action['arg_types']['statement']
+                                config_type_dict[key] = (action.get('arg_types') or {}).get('statement') or "any"
                     else:
                         for arg in args:
                             if type(args[arg]) is str and args[arg].startswith("#"):

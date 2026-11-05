@@ -633,6 +633,58 @@ class ScriptRunnerStepMixin:
                 self.logger.warning("No socketio connection, skipping input")
         return result
 
+    # text that has one of these once its values are filled in is tried as an expression, such as `#name + "_A"`;
+    # other text, such as `sample_#x`, stays text with its #name values filled in
+    _EXPRESSION_CHARS = ('+', '-', '*', '/', '>', '<', '=', '(', ')')
+    _CASTS = {"float": float, "int": int, "bool": bool}
+
+    @classmethod
+    def _variable_value(cls, statement: str, arg_type, context: Dict[str, Any]) -> Any:
+        """The value of a variable or math step's statement for one sample.
+
+        Each ``#name`` (or bare ``name``) is filled in with its value as text and the statement evaluated, as
+        before: numbers work that way, and so does a number given as text, ``"5"`` from an untyped column. A text
+        value filled in becomes a name, though (``#name + "_A"`` is ``qwe + "_A"``), so when that fails the
+        statement is evaluated again with the variables as names, as conditions are, giving ``qwe_A``. An
+        f-string is only read with names, and since it is meant as an expression, its errors are the step's.
+        """
+        names = sorted((key for key in context if isinstance(key, str) and key), key=len, reverse=True)
+        expression = pasted = statement
+        if names:
+            # the longest name first, so #name_input is not #name followed by "_input"
+            alternatives = "|".join(re.escape(name) for name in names)
+            expression = re.sub(f"#({alternatives})", r"\1", statement)
+            pasted = re.sub(rf"#({alternatives})|\b({alternatives})\b",
+                            lambda match: str(context[match.group(1) or match.group(2)]), statement)
+
+        cast = cls._CASTS.get(arg_type)
+        if cast is not None:
+            for candidate, names_in_scope in ((pasted, None), (expression, context)):
+                try:
+                    return cast(evaluate(candidate, names_in_scope))
+                except Exception:
+                    pass
+            if arg_type == "bool":
+                return pasted.lower() in ['true', '1', 'yes']
+            return cast(pasted)
+
+        if statement.startswith(('f"', "f'")):
+            try:
+                return evaluate(expression, context)
+            except SyntaxError as error:
+                # a #name left in the braces is not a variable defined before this step
+                unknown = re.search(r"\{[^{}]*#([A-Za-z_]\w*)", expression)
+                if unknown:
+                    raise NameError(f"'{unknown.group(1)}' is not a variable defined before this step") from error
+                raise
+        if pasted.startswith(('"', "'")) or any(char in pasted for char in cls._EXPRESSION_CHARS):
+            for candidate in (pasted, expression):
+                try:
+                    return evaluate(candidate, context)
+                except Exception:
+                    pass
+        return pasted
+
     async def _execute_variable_batched(self, step: Dict, contexts: List[Dict[str, Any]], phase_id, step_index,
                                         section_name):
         """Execute variable assignment for multiple samples."""
@@ -651,64 +703,10 @@ class ScriptRunnerStepMixin:
                         context[var_name] = value
                         continue
 
-                    # Substitute any variable references in the value
                     if isinstance(var_value, str):
                         if self.logger:
                             self.logger.info(f'Executing variable {var_name} ({arg_type}): {var_value}')
-
-                        substituted_value = var_value
-
-                        # Replace all variable references (with or without #) with their values
-                        for key, val in context.items():
-                            # Handle both #variable and variable (without #)
-                            substituted_value = substituted_value.replace(f"#{key}", str(val))
-                            # For expressions like "vial+10", replace variable name directly
-                            # Use word boundaries to avoid partial matches
-                            import re
-                            substituted_value = re.sub(r'\b' + re.escape(key) + r'\b', lambda _: str(val), substituted_value)
-                        if self.logger:
-                            self.logger.info(f'Substituted variable references for {var_name}: {substituted_value}')
-
-                        # Handle based on type
-                        if arg_type == "float":
-                            try:
-                                # Evaluate as expression (e.g., "10.0+10" becomes 20.0)
-                                result = evaluate(substituted_value)
-                                context[var_name] = float(result)
-                            except:
-                                # If evaluating fails, try direct conversion
-                                context[var_name] = float(substituted_value)
-
-                        elif arg_type == "int":
-                            try:
-                                result = evaluate(substituted_value)
-                                context[var_name] = int(result)
-                            except:
-                                context[var_name] = int(substituted_value)
-
-                        elif arg_type == "bool":
-                            try:
-                                # Evaluate boolean expressions
-                                result = evaluate(substituted_value)
-                                context[var_name] = bool(result)
-                            except:
-                                context[var_name] = substituted_value.lower() in ['true', '1', 'yes']
-
-                        else:  # "str"
-                            # For strings, check if it looks like an expression (including f-strings)
-                            # todo add to the list '{', '}' if want those to show up in the string, but then fstring logic might not work? needs testing
-                            if any(char in substituted_value for char in ['+', '-', '*', '/', '>', '<', '=', '(', ')']) \
-                                    or substituted_value.startswith('f"') or substituted_value.startswith("f'") \
-                                    or substituted_value.startswith('"') or substituted_value.startswith("'"):
-                                try:
-                                    # Try to evaluate as expression
-                                    result = evaluate(substituted_value, context)
-                                    context[var_name] = result
-                                except:
-                                    # If evaluating fails, store as string
-                                    context[var_name] = substituted_value
-                            else:
-                                context[var_name] = substituted_value
+                        context[var_name] = self._variable_value(var_value, arg_type, context)
                     else:
                         # Direct numeric or boolean value
                         context[var_name] = var_value

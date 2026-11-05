@@ -1,6 +1,7 @@
 import re
 import io
 
+import pytest
 from flask import g
 from itsdangerous import URLSafeTimedSerializer
 
@@ -540,11 +541,13 @@ def test_a_toolbox_group_holds_only_its_actions(auth, test_deck):
     assert 'list="actions-deck-dummy-' in html and 'list="arg_options"' not in html
 
 
-def test_a_flow_control_field_explains_itself_under_the_field_not_as_a_limit(auth, test_deck):
+def test_a_flow_control_field_explains_itself_in_its_placeholder_not_as_a_limit(auth, test_deck):
     html = auth.get('/ivoryos/draft/instruments/flow_control').get_json()['html']
 
-    assert 'class="form-text field-help">No spaces</div>' in html
-    assert 'class="form-text field-help">Numbers and #variables</div>' in html
+    # a short example in the box, no note under it
+    assert 'placeholder="1, True, &#34;text&#34;"' in html or 'placeholder="1, True, &quot;text&quot;"' in html
+    assert 'placeholder="x * 2 + 1"' in html and 'placeholder="x &gt; 5"' in html
+    assert 'field-help' not in html
     # the type select has a label that fits the narrow label column
     assert 'Select Value Type' not in html and 'Select Input Type' not in html
     assert '<label class="input-group-text">Type' in html
@@ -863,6 +866,28 @@ def test_toolbox_groups_loaded_in_parallel_share_the_session_csrf_token(auth, te
         assert response.get_json()['success'], response.get_json()
     finally:
         app.config['WTF_CSRF_ENABLED'] = False
+
+
+@pytest.mark.parametrize("variable_type, statement, stored", [
+    ("float", "x * 2", "x * 2"),
+    ("int", "#x + 1", "#x + 1"),
+    ("bool", "x > 2", "x > 2"),
+    ("int", "5", 5),
+    ("float", "1.5", 1.5),
+    ("bool", "True", True),
+    ("bool", "no", False),
+    ("str", "hello", "hello"),
+])
+def test_a_variable_keeps_an_expression_and_converts_a_plain_value(auth, test_deck, variable_type, statement, stored):
+    # a variable does what a math step did: `x * 2` as a Float was float("x * 2"), an error, and `x > 2` False
+    response = auth.post('/ivoryos/draft/instruments/flow_control',
+                         data={'builtin_name': 'variable', 'statement': statement, 'variable': 'out',
+                               'variable_type': variable_type})
+    assert response.get_json()['success'], response.get_json()
+
+    script = get_script_for_user('testuser', draft_id=session_draft_id(auth))
+    saved = script.script_dict['script'][-1]['args']['statement']
+    assert saved == stored and type(saved) is type(stored)
 
 
 def test_flow_control_dropped_with_a_blank_statement_still_compiles(auth, test_deck):

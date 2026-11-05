@@ -9,7 +9,7 @@ except ImportError:
     ast_unparse = astor.to_source
 
 from ivoryos.script.models import Script
-from ivoryos.script.editor import ScriptEditor
+from ivoryos.script.editor import ScriptEditor, statement_expression
 from ivoryos.utils.enums import enum_class_from_type, find_member
 from ivoryos.models.base import db
 from ivoryos.parsers.structured_types import (
@@ -465,13 +465,11 @@ class ScriptRenderer:
         elif instrument == 'while':
             return self._process_while(indent_unit, action_name, statement, next_action)
         elif instrument == 'variable':
-            expr = str(statement)
-            if isinstance(statement, str) and statement.startswith("#"):
-                expr = statement[1:]
-            expr = self._apply_type_cast(expr, action)
+            expr = self._apply_type_cast(self._statement_expression(statement), action)
 
             if batch:
-                if isinstance(statement, str) and statement.startswith("#"):
+                # a lone #name is skipped; an expression such as `#x * 2` is computed per sample, as math's is
+                if isinstance(statement, str) and re.fullmatch(r"#[A-Za-z_]\w*", statement.strip()):
                     return '', indent_unit
                 return self.indent(indent_unit) + "for param in param_list:" + self.indent(
                     indent_unit + 1) + f"param['{action_name}'] = {expr}", indent_unit
@@ -544,8 +542,7 @@ class ScriptRenderer:
     def _process_if(self, indent_unit, action, args, next_action):
         exec_string = ""
         if action == 'if':
-            if isinstance(args, str) and args.startswith("#"):
-                args = args[1:]
+            args = self._statement_expression(args)
             exec_string += self.indent(indent_unit) + f"if {args}:"
             indent_unit += 1
             if next_action and next_action['instrument'] == 'if' and next_action['action'] == 'else':
@@ -563,8 +560,7 @@ class ScriptRenderer:
     def _process_while(self, indent_unit, action, args, next_action):
         exec_string = ""
         if action == 'while':
-            if isinstance(args, str) and args.startswith("#"):
-                args = args[1:]
+            args = self._statement_expression(args)
             exec_string += self.indent(indent_unit) + f"while {args}:"
             indent_unit += 1
             if next_action and next_action['instrument'] == 'while':
@@ -592,6 +588,17 @@ class ScriptRenderer:
     def _process_math(self, expr: str) -> str:
         cleaned = re.sub(r"#([A-Za-z_]\w*)", r"\1", expr)
         return cleaned
+
+    def _statement_expression(self, statement) -> str:
+        """A variable step's statement or a condition as Python, with its #name references as names, as in
+        f"{#name}_A" or `#x > 5 and #y < 3`. Text that only parses with its # left in, such as `vial #A1` (a
+        name, then a comment), compiles as before."""
+        expression = statement_expression(statement)
+        if expression is not None:
+            return expression
+        if isinstance(statement, str) and statement.startswith("#"):
+            return statement[1:]
+        return str(statement)
 
     def _process_instrument_action(self, indent_unit, instrument, action, args, save_data, is_async=False,
                                    batch=False, batch_action=False, workflow_steps=None, interface_schema=None, arg_types=None):

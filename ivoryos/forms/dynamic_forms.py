@@ -84,6 +84,22 @@ WORKFLOW_NAME_FIELD = "ivoryos_workflow_name"
 
 VARIABLE_TYPE_CHOICES = [('int', 'Integer'), ('float', 'Float'), ('str', 'String'), ('bool', 'Boolean')]
 
+# what a flow-control step's statement takes, by example: the toolbox field is narrow, so a few words in the
+# box rather than a note under it. Plain Python, as `x` reads a value set by an earlier step; `#x` also works,
+# and makes x a run input when nothing sets it. (A saved math step is "math_variable".)
+STATEMENT_PLACEHOLDERS = {
+    'if': 'x > 5',
+    'while': 'x > 5',
+    'variable': '1, True, "text"',
+    'math': 'x * 2 + 1',
+    'math_variable': 'x * 2 + 1',
+    'input': 'Question to ask',
+    'wait': 'Seconds',
+    'repeat': 'Times',
+    'pause': 'Message to show',
+    'comment': 'Text to log',
+}
+
 def is_list_type(ann):
     if ann is list: return True
     try:
@@ -1087,13 +1103,9 @@ def create_form_from_action(action: dict, script=None, design=True):
 
         if instrument in ["math_variable", "variable", "input"]:
             field_class = VariableOrStringField
-            if instrument == "math_variable":
-                placeholder_text = "Enter math expression"
-            elif instrument == "input":
-                placeholder_text = "Enter prompt message"
-            else:
-                placeholder_text = "Enter value"
             field_kwargs["validators"] = [InputRequired()]
+        if name == "statement" and instrument in STATEMENT_PLACEHOLDERS:
+            placeholder_text = STATEMENT_PLACEHOLDERS[instrument]
 
 
         render_kwargs = {"placeholder": placeholder_text, **extra_render_kwargs}
@@ -1184,20 +1196,7 @@ def create_builtin_form(logic_type, script):
     """
     class BuiltinFunctionForm(FlaskForm):
         pass
-    placeholder_text = {
-        'wait': 'Enter second',
-        'repeat': 'Enter an integer',
-        'pause': 'Human Intervention Message',
-        'comment': 'Enter comment to log',
-        'input': 'Enter prompt message',
-        'variable': 'Enter value',
-        'math': 'Enter math expression, e.g. #x + 5 * (#y - 2)'
-    }.get(logic_type, 'Enter statement')
-    # short notes under the field: the toolbox column is narrow (see action_form.html)
-    description_text = {
-        'variable': 'A number, True/False, or "text"',
-        'math': "Numbers and #variables",
-    }.get(logic_type, '')
+    placeholder_text = STATEMENT_PLACEHOLDERS.get(logic_type, 'Statement')
     field_class = {
         'wait': VariableOrFloatField,
         'repeat': VariableOrIntField,
@@ -1205,7 +1204,6 @@ def create_builtin_form(logic_type, script):
     field_kwargs = {
         "label": f'statement',
         "validators": [InputRequired()] if logic_type in ['wait', "variable", "math"] else [],
-        "description": description_text,
         "script": script
     }
     render_kwargs = {"placeholder": placeholder_text}
@@ -1213,7 +1211,6 @@ def create_builtin_form(logic_type, script):
     setattr(BuiltinFunctionForm, "statement", field)
     if logic_type == 'variable':
         variable_field = VariableOrStringField(label=f'variable', validators=[InputRequired()],
-                                     description="No spaces",
                                      render_kw={"placeholder": "Variable name"}, script=script)
         type_field = SelectField(
             'Type',
@@ -1225,8 +1222,7 @@ def create_builtin_form(logic_type, script):
         setattr(BuiltinFunctionForm, "variable_type", type_field)
     elif logic_type == 'input':
         variable_field = VariableOrStringField(label=f'variable', validators=[InputRequired()],
-                                     description="Saves the answer",
-                                     render_kw={"placeholder": "Result variable name"}, script=script)
+                                     render_kw={"placeholder": "Variable name"}, script=script)
         type_field = SelectField(
             'Type',
             choices=VARIABLE_TYPE_CHOICES,
@@ -1238,8 +1234,7 @@ def create_builtin_form(logic_type, script):
         math_variable_field = VariableOrStringField(
             label="save_to",
             validators=[InputRequired()],
-            description="Saves the result",
-            render_kw={"placeholder": "Result variable name"},
+            render_kw={"placeholder": "Variable name"},
             script=script
         )
         type_field = SelectField(
