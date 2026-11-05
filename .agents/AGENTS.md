@@ -251,10 +251,41 @@ There is no CI check for this: keeping the pictures current is part of making a 
 
 ---
 
+## Releases: the "what's new" video
+
+Every release that is a minor or major release (`x.y.0`) or has a `**[New]**` CHANGELOG entry gets
+a short video recorded by `docs/release_videos/record.py` from a scene script,
+`docs/release_videos/scenes/v<major>_<minor>_<patch>.py`. A patch release of fixes and small
+improvements does not. Whenever you bump `ivoryos/version.py`, write a CHANGELOG section for a
+release, or are asked to prepare, tag or publish a release, do this **before the tag**:
+
+1. `python docs/release_videos/record.py --check` (works without the video extras). Exit 1 means the
+   scene script is missing. Nothing in CI checks this, so this step is the only reminder.
+2. Follow `.agents/skills/release_video/SKILL.md`: write the scene script from the CHANGELOG section
+   on the dye-mixing demo lab (`docs/release_videos/dye_lab.py`), with a spoken `say=` line for each
+   caption and slide, record it, review the frames and Whisper's check of the narration, and
+   re-record until every caption and line matches what is on screen.
+3. Commit the scene script with the version bump. The MP4 (`docs/release_videos/output/`, 1080p,
+   narrated by a local Kokoro voice), its `.srt` subtitles, its YouTube cover (`-cover.jpg`) and its
+   YouTube title and description (`-youtube.txt`) are made locally and not committed. Tell the user
+   where all four are.
+
+If a release that needs a video has nothing visible to show, the scene script holds only
+`SKIP = "<the reason>"`; say so to the user rather than deciding it silently.
+
+Tutorial videos, walkthroughs not tied to a release, are recorded the same way from
+`docs/release_videos/tutorials/<name>.py` with `record.py --tutorial <name>`. When a UI change makes
+one of them show something that is no longer there, tell the user it needs re-recording.
+
+Videos are internal release work. Their notes are in `docs/release_videos/README.md`; do not add them
+to the published docs in `docs/source/`.
+
+---
+
 ## Dependencies
 
 - Core requirements are in `requirements.txt` and `pyproject.toml` (source of truth for extras).
-- Optional groups: `[dev]`, `[llm]`, `[db]`, `[optimizer-ax]`, `[optimizer-baybe]`, `[optimizer-nimo]`, `[optimizers]`.
+- Optional groups: `[dev]`, `[llm]`, `[db]`, `[optimizer-ax]`, `[optimizer-baybe]`, `[optimizer-nimo]`, `[optimizers]`, `[video]` (release videos).
 - Keep `requirements.txt` and `pyproject.toml` in sync when adding new core dependencies.
 - Do not add heavy optional dependencies (e.g. `torch`, `ax-platform`) to the core `requirements.txt`.
 

@@ -179,6 +179,9 @@ Use `Input` in flow control to get human input during workflow execution. Exampl
 Online demo at [demo.ivoryos.ai](https://demo.ivoryos.ai). 
 Local version in [abstract_sdl.py](https://gitlab.com/heingroup/ivoryos/-/blob/main/community/examples/abstract_sdl_example/abstract_sdl.py)
 
+Videos:
+- [Getting started with IvoryOS](https://youtu.be/iwRtIBsNFZ4): a narrated walkthrough, from your lab's Python to running a workflow and reading the results
+
 ---
 
 ## Roadmap

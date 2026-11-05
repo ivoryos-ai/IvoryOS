@@ -1,6 +1,6 @@
 ﻿# Changelog
 ## 1.8.0 (November 3rd, 2026)
-Arguments now reach the driver as their annotated types, dict, list, set and tuple arguments can be edited in forms, and the user docs are now [step-by-step tutorials](https://ivoryos.readthedocs.io/en/latest/users/index.html).
+Watch [what's new in 1.8.0](https://www.youtube.com/watch?v=4P__9rT2wFg).
 
 **Upgrading:** `if`/`while` conditions and [`variable`/`math` steps](https://ivoryos.readthedocs.io/en/latest/users/workflow-designer.html) no longer use `eval`, so lambdas, comprehensions and names or attributes starting with `_` are refused. A run also won't start if a required `#name` that no step sets has no value.
 

@@ -44,6 +44,9 @@ doc = [
     "sphinxcontrib-httpdomain"
 ]
 dev = ["pytest"]
+# docs/release_videos/record.py; also run `playwright install chromium`. Kokoro speaks the
+# narration and Whisper (faster-whisper) checks it, both locally.
+video = ["playwright", "imageio-ffmpeg", "kokoro-onnx", "faster-whisper"]
 
 [project.urls]
 Homepage = "https://gitlab.com/heingroup/ivoryos"
