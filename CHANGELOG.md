@@ -1,4 +1,8 @@
 ﻿# Changelog
+## 1.8.1 (November 6th, 2026)
+- !234 **[QoL]** indent and color `if`/`while`/`repeat` blocks on the design canvas, flag misplaced block rows, and refuse moving an `else` or end out of order
+- !231 **[Bug]** resolve expressions in `variable`, `math` and `if`/`while` steps, such as `#name + "_A"`, `f"{name}_A"` and `#x > 5`
+
 ## 1.8.0 (November 3rd, 2026)
 Watch [what's new in 1.8.0](https://www.youtube.com/watch?v=4P__9rT2wFg).
 
