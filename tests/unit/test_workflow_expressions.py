@@ -101,6 +101,98 @@ def test_a_text_variable_that_tries_to_escape_is_kept_as_text():
     assert _run_variable_step("variable", statement, "str", {}) == statement
 
 
+@pytest.mark.parametrize("statement, expected", [
+    ('#name + "_asd"', "qwe_asd"),
+    ('name + "_asd"', "qwe_asd"),
+    ('f"{name}_asd"', "qwe_asd"),
+    ('f"{#name}_asd"', "qwe_asd"),
+    ("#name.upper()", "QWE"),
+    ("#name_input", "abc"),
+    ("sample_#x", "sample_3"),
+    ("run-#x", "run-3"),
+    ("vial #A1", "vial #A1"),
+    ("plain text", "plain text"),
+])
+def test_text_variables_are_built_from_other_variables(statement, expected):
+    # issue 217: a text value was pasted into the statement, so `#name + "_asd"` was kept as `qwe + "_asd"`
+    context = {"name": "qwe", "name_input": "abc", "x": 3}
+    assert _run_variable_step("variable", statement, "str", context) == expected
+
+
+def test_a_condition_on_a_text_variable_holds():
+    assert _run_variable_step("variable", '#status == "done"', "bool", {"status": "done"}) is True
+
+
+@pytest.mark.parametrize("arg_type, expected", [("float", 10.0), ("str", 10)])
+def test_numbers_given_as_text_still_add_up(arg_type, expected):
+    # a config column with no type keeps its cells as text
+    assert _run_variable_step("variable", "#base * 2", arg_type, {"base": "5"}) == expected
+
+
+@pytest.mark.parametrize("statement", ['f"{#nmae}_asd"', 'f"{nmae}_asd"'])
+def test_a_misspelt_name_in_an_f_string_is_an_error(statement):
+    with pytest.raises(NameError, match="nmae"):
+        ScriptRunnerStepMixin._variable_value(statement, "str", {"name": "qwe"})
+
+
+@pytest.mark.parametrize("statement, line, inputs", [
+    ('f"{#name}_asd"', 'out = f"{name}_asd"', ["name"]),
+    ('#name + "_asd"', 'out = name + "_asd"', ["name"]),
+    ("#a + #b", "out = a + b", ["a", "b"]),
+    ("#name_input", "out = name_input", ["name_input"]),
+    ("vial #A1", "out = vial #A1", []),
+])
+def test_text_variables_compile(app, statement, line, inputs):
+    from ivoryos.script import Script, ScriptEditor, ScriptRenderer
+
+    step = {"id": 1, "uuid": 1, "instrument": "variable", "action": "out", "args": {"statement": statement},
+            "arg_types": {"statement": "str"}, "return": ""}
+    script = Script(author="t", name="wf")
+    script.script_dict = {"prep": [], "script": [step], "cleanup": []}
+    with app.app_context():
+        assert ScriptEditor(script).config("script")[0] == inputs
+        renderer = ScriptRenderer(script)
+        code = f"{renderer.get_required_imports()}\n{renderer.compile()['script']}"
+    assert line in code
+    compile(code, "<workflow>", "exec")
+
+
+@pytest.mark.parametrize("instrument, statement, line", [
+    ("variable", "#x * 2", "param['out'] = float(x * 2)"),
+    ("math_variable", "#x * 2", "param['out'] = float(x * 2)"),
+])
+def test_a_variable_expression_is_in_the_batch_code_as_math_was(app, instrument, statement, line):
+    from ivoryos.script import Script, ScriptRenderer
+
+    step = {"id": 1, "uuid": 1, "instrument": instrument, "action": "out", "args": {"statement": statement},
+            "arg_types": {"statement": "float"}, "return": ""}
+    script = Script(author="t", name="wf")
+    script.script_dict = {"prep": [], "script": [step], "cleanup": []}
+    with app.app_context():
+        assert line in ScriptRenderer(script).compile(batch=True)["script"]
+
+
+@pytest.mark.parametrize("condition, line, inputs", [
+    ("#x > 5", "if x > 5:", ["x"]),
+    ("#x > 5 and #y < 3", "if x > 5 and y < 3:", ["x", "y"]),
+    ("x > 5", "if x > 5:", []),
+])
+def test_conditions_on_run_inputs_compile(app, condition, line, inputs):
+    # `#x > 5` was the input `x > 5`, and `def wf(x > 5)` did not compile
+    from ivoryos.script import Script, ScriptEditor, ScriptRenderer
+
+    steps = [{"id": i, "uuid": 1, "instrument": "if", "action": action, "args": args, "arg_types": {}, "return": ""}
+             for i, (action, args) in enumerate([("if", {"statement": condition}), ("else", {}), ("endif", {})], 1)]
+    script = Script(author="t", name="wf")
+    script.script_dict = {"prep": [], "script": steps, "cleanup": []}
+    with app.app_context():
+        assert ScriptEditor(script).config("script")[0] == inputs
+        renderer = ScriptRenderer(script)
+        code = f"{renderer.get_required_imports()}\n{renderer.compile()['script']}"
+    assert line in code
+    compile(code, "<workflow>", "exec")
+
+
 def _registered_workflow(arg_type):
     from ivoryos.forms.dynamic_forms import get_method_from_workflow
     from ivoryos.script import Script, ScriptRenderer

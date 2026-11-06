@@ -319,7 +319,8 @@ hr.vertical {
     font-size: 0.85rem;
 }
 
-/* In the toolbox only (the same form copied into the drop pop-up keeps Bootstrap's look):
+/* In the toolbox only (the same form copied into the drop pop-up keeps Bootstrap's look, lined up
+   below):
    labels as plain text beside their fields, everything at one size, Add on the right. The
    method's arguments line up in a column; the step's own options sit under them, one line
    each. */
@@ -405,9 +406,8 @@ hr.vertical {
     grid-column: 2;
 }
 
-/* a field's note sits under its box, in the field column, so it never shifts the grid: the
-   safety limit of an instrument argument, or what a flow-control field takes */
-.toolbox-action-body .form-group .field-help,
+/* the safety limit of an instrument argument sits under its box, in the field column, so it
+   never shifts the grid */
 .toolbox-action-body .form-group .field-limit {
     grid-column: 2;
     margin-top: -0.2rem;
@@ -432,6 +432,66 @@ hr.vertical {
 
 .toolbox-action-body .input-group > .form-check-input {
     margin: 0;
+}
+
+/* The drop pop-up (drop_modal.html): the toolbox form in Bootstrap's input groups, but every label as
+   wide as the longest one, so the fields start in one column, and a safety limit on a line under its
+   field rather than squeezed in beside it. Each group keeps its own box and spacing and takes the form's two
+   columns as a subgrid. A dict argument keeps its own layout (structured_editor.js). */
+#modalFormFields form {
+    display: grid;
+    grid-template-columns: fit-content(40%) minmax(0, 1fr);
+}
+
+#modalFormFields form > *,
+#modalFormFields form > .form-group > * {
+    grid-column: 1 / -1;
+}
+
+#modalFormFields form > .form-group {
+    display: contents;
+}
+
+#modalFormFields form > .input-group,
+#modalFormFields form > .form-group > .input-group:not(.structured-group) {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+}
+
+#modalFormFields form .input-group:not(.structured-group) > * {
+    grid-column: 2;
+}
+
+/* plain text in its box, not Bootstrap's flex row, so a required field's * follows the last word when
+   the label wraps on a narrow screen */
+#modalFormFields form .input-group:not(.structured-group) > .input-group-text:first-child {
+    display: block;
+    grid-column: 1;
+    align-self: stretch;
+    white-space: normal;
+    text-align: left;
+}
+
+#modalFormFields form .input-group-text .text-danger {
+    margin-left: 0 !important;
+}
+
+#modalFormFields form .input-group:not(.structured-group) > .form-control {
+    width: 100%;
+    /* Bootstrap squares the corner of a field that is not last in its group; its note is under it */
+    border-top-right-radius: var(--bs-border-radius) !important;
+    border-bottom-right-radius: var(--bs-border-radius) !important;
+}
+
+#modalFormFields form .input-group > .form-check-input {
+    justify-self: start;
+    margin: 0 0 0 0.75rem;
+}
+
+#modalFormFields form .input-group > .field-limit {
+    margin-top: 0.25rem;
 }
 
 .accordion-item.design-agent .accordion-button.collapsed {

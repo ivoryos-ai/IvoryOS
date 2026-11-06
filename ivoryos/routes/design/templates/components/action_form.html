@@ -43,14 +43,10 @@
                                 {% endif %}
 
                                 {% if field.description and field.type != 'BooleanField' %}
-                                    {# a note under the field, in its column of the grid (see style.css) #}
-                                    {% if 'builtin_name' in form %}
-                                        {# flow control: what the field takes #}
-                                        <div class="form-text field-help">{{ field.description }}</div>
-                                    {% else %}
-                                        {# an instrument argument: its safety limit, unit and allowed range #}
-                                        <div class="form-text field-limit" title="Safety limit: {{ field.description }}">{{ field.description }}</div>
-                                    {% endif %}
+                                    {# an instrument argument's safety limit, unit and allowed range, under the field
+                                       in its column of the grid (see style.css); a flow-control field says what it
+                                       takes in its placeholder #}
+                                    <div class="form-text field-limit" title="Safety limit: {{ field.description }}">{{ field.description }}</div>
                                 {% endif %}
                                 {% if form.arg_types is defined and form.arg_types and form.arg_types.get(field.name) == 'list' %}
                                     <div class="input-group-text consolidate-wrapper" style="display: none;"

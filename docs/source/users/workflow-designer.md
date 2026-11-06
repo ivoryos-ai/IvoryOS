@@ -38,14 +38,39 @@ whole batch rather than once per sample, such as homing a robot.
 
 | Action | What it does |
 | --- | --- |
-| `if`, `while` | Run the steps inside only if, or as long as, a condition holds. The condition can use `#name` values. |
+| `if`, `while` | Run the steps inside only if, or as long as, a condition holds, such as `x > 5`. |
 | `repeat` | Run the steps inside a fixed number of times. |
 | `wait` | Pause the workflow for a number of seconds. |
 | `pause` | Stop and show a message until someone resumes the run, for a manual step. |
 | `input` | Ask the person at the bench for a value and save the answer. |
-| `variable` | Set a named value: a number, `True`/`False`, or `"text"`. |
-| `math` | Compute a value from numbers and `#name` values, such as `#x + 5 * (#y - 2)`. |
+| `variable` | Set a named value: a number, `True`/`False`, `"text"`, or one built from other values. |
+| `math` | Compute a number from other values, such as `x + 5 * (y - 2)`. |
 | `comment` | Write a line to the run log. |
+
+### Values and expressions
+
+Conditions and the statements of `variable` and `math` steps are written as in Python. A name such
+as `x` is a value set by an earlier step: a `variable`, `math` or `input` step, or a **Save value
+as** name. `#x` reads the same value, and when no earlier step sets `x`, it also makes `x` a run
+input.
+
+A `variable` step's **Type** decides what its statement gives. With `name` set to `qwe`, `x` to 3
+and `y` to 2.5:
+
+| Type | Statement | Value |
+| --- | --- | --- |
+| String | `hello`, `sample-1` | The text as typed. |
+| String | `"two words"` | `two words`. Text with spaces needs quotes. |
+| String | `sample_#x` | `sample_3`. Each `#name` in the text is filled in. |
+| String | `name + "_A"`, `f"{name}_A"` | `qwe_A` |
+| String | `name.upper()` | `QWE` |
+| Integer, Float | `x * 2`, `x + 5 * (y - 2)` | `6`, `5.5` |
+| Integer, Float | `values[-1]`, `result['yield']` | An item of a list or a dict. |
+| Boolean | `True`, `x > 2 and y < 3`, `status == "done"` | `True` or `False` |
+
+An Integer drops the decimal part, so `x / 2` gives 1. Functions such as `len(x)` or `round(x)`
+are not available, and a String step keeps such a statement as text. A misspelt name in an
+f-string stops the run with an error.
 
 ## The designer at a glance
 
