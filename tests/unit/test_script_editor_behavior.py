@@ -140,3 +140,41 @@ def test_blank_repeat_and_pause_get_usable_defaults(blank):
 
     statements = [action["args"].get("statement") for action in script.script_dict["script"]]
     assert statements == [1, None, "Human intervention required", ""]
+
+
+def _row(instrument, action, uid):
+    return {"instrument": instrument, "action": action, "uuid": uid}
+
+
+@pytest.mark.parametrize("rows, problem", [
+    # a whole block, an if without an else, and a step inside one: nothing to refuse
+    ([_row("if", "if", 1), _row("deck.pump", "prime", 9), _row("if", "else", 1), _row("if", "endif", 1)], None),
+    ([_row("if", "if", 1), _row("if", "endif", 1)], None),
+    # crossing another block is left to the canvas warning: a move can pass through it
+    ([_row("if", "if", 1), _row("if", "if", 2), _row("if", "else", 1), _row("if", "endif", 1),
+      _row("if", "else", 2), _row("if", "endif", 2)], None),
+    ([_row("if", "else", 1), _row("if", "if", 1), _row("if", "endif", 1)],
+     "An else can't come before its own if."),
+    ([_row("if", "if", 1), _row("if", "endif", 1), _row("if", "else", 1)],
+     "An else can't come after its own endif."),
+    ([_row("while", "endwhile", 1), _row("while", "while", 1)],
+     "An endwhile can't come before its own while."),
+    ([_row("repeat", "endrepeat", 1), _row("repeat", "repeat", 1)],
+     "An endrepeat can't come before its own repeat."),
+])
+def test_block_order_problem(rows, problem):
+    assert ScriptEditor.block_order_problem(rows) == problem
+
+
+def test_block_order_problem_only_counts_blocks_the_move_puts_out_of_order():
+    # block 1's else is already above its if (a draft saved before the check)
+    before = [_row("if", "else", 1), _row("if", "if", 1), _row("if", "endif", 1),
+              _row("deck.pump", "prime", 9), _row("if", "if", 2), _row("if", "endif", 2)]
+    elsewhere = [before[i] for i in (0, 1, 3, 2, 4, 5)]
+    fixed = [before[i] for i in (1, 0, 2, 3, 4, 5)]
+    breaks_block_2 = [before[i] for i in (0, 1, 2, 3, 5, 4)]
+
+    assert ScriptEditor.block_order_problem(elsewhere, before=before) is None
+    assert ScriptEditor.block_order_problem(fixed, before=before) is None
+    assert ScriptEditor.block_order_problem(breaks_block_2, before=before) == (
+        "An endif can't come before its own if.")

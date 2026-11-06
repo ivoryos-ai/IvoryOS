@@ -47,9 +47,15 @@
     {% endif %}
 
     {% for button in buttons %}
-        {% set issues = button.get('issues') or [] %}
+        {# flagged beside a step: how it no longer matches the deck (the banner above counts
+           only these), and a block's row that sits where its block can't run #}
+        {% set issues = (button.get('issues') or [])
+                        + ([{'severity': 'error', 'message': button['structure_issue']}] if button.get('structure_issue') else []) %}
         {% set blocking = issues | selectattr('severity', 'equalto', 'error') | list %}
-        <li id="{{ button['id'] }}" style="list-style-type: none;" class="d-flex align-items-center mb-1">
+        {# steps inside an if/while/repeat block are indented one level per block they sit in,
+           and the rows of one block (if, else, endif) share a rail colour #}
+        {% set rail = '' if button.get('block') is none else 'block-rail block-rail-' ~ (button['block'] % 6) %}
+        <li id="{{ button['id'] }}" style="list-style-type: none; margin-left: {{ (button.get('depth') or 0) * 1.5 }}rem;" class="d-flex align-items-center mb-1">
             <span class="line-number d-none">{{ button['id'] }}.</span>
             {# Always rendered so the step labels stay aligned whether or not a step is flagged.
                A plain span, not a button: the list is a jQuery UI sortable, which calls
@@ -60,13 +66,13 @@
                   data-bs-toggle="tooltip" data-bs-placement="bottom"
                   data-bs-custom-class="step-issue-tooltip"
                   role="img"
-                  aria-label="{{ issues | length }} reason{{ 's' if issues | length != 1 }} this step does not match the deck"
+                  aria-label="{{ issues | length }} problem{{ 's' if issues | length != 1 }} with this step"
                   title="{% for issue in issues %}{{ '- ' if issues | length > 1 }}{{ issue.message }}
 {% endfor %}"
                   {% endif %}>
                 <span class="bi {{ 'bi-exclamation-octagon-fill text-danger' if blocking else 'bi-exclamation-triangle-fill text-warning' }}"></span>
             </span>
-            <a href="#" onclick="editAction('{{ button['uuid'] }}'); return false;" type="button" class="btn btn-light flex-grow-1 text-start text-wrap text-break {% if issues %}border {{ 'border-danger' if blocking else 'border-warning' }}{% endif %} {% if button.get('disabled', False) %}text-muted text-decoration-line-through{% endif %}" style="{{ button['style'] }} {% if button.get('disabled', False) %}background-color: #e9ecef;{% endif %}">{{ button['label'] }}</a>
+            <a href="#" onclick="editAction('{{ button['uuid'] }}'); return false;" type="button" class="btn btn-light flex-grow-1 text-start text-wrap text-break {{ rail }} {% if issues %}border {{ 'border-danger' if blocking else 'border-warning' }}{% endif %} {% if button.get('disabled', False) %}text-muted text-decoration-line-through{% endif %}" style="{{ button['style'] }} {% if button.get('disabled', False) %}background-color: #e9ecef;{% endif %}">{{ button['label'] }}</a>
             {% if not button["instrument"] in ["if","while","repeat"] %}
                 <button onclick="toggleCommentAction('{{ button['uuid'] }}')" type="button" class="btn btn-light" title="Toggle Execution">
                     {% if button.get('disabled', False) %}

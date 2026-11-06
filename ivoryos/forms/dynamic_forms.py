@@ -1398,7 +1398,69 @@ def create_action_button(script, stype=None, reference=None):
     variables = ScriptEditor(script).get_variables()
     if reference is None:
         reference = current_reference()
-    return [_action_button(i, variables, reference) for i in script.get_script(stype)]
+    actions = script.get_script(stype)
+    buttons = []
+    for action, (depth, block, misplaced) in zip(actions, _nesting(actions)):
+        button = _action_button(action, variables, reference)
+        button["depth"] = depth
+        button["block"] = block
+        button["structure_issue"] = misplaced
+        buttons.append(button)
+    return buttons
+
+
+_BLOCK_INSTRUMENTS = ("if", "while", "repeat")
+_BLOCK_ENDS = ("endif", "endwhile", "endrepeat")
+_END_OF = dict(zip(_BLOCK_INSTRUMENTS, _BLOCK_ENDS))
+
+
+def _nesting(actions):
+    """
+    Where each step sits among if/while/repeat blocks, so the canvas can indent, colour and
+    flag it. Returns one (depth, block, misplaced) triple per step.
+
+    A block's own rows (if, else, endif) share a uuid, and deleting any of them deletes them
+    all. They sit at the block's depth and the steps between them one level further in.
+    ``block`` numbers the blocks in the order they appear, on a block's own rows only (None
+    on every other step). ``misplaced`` says why a block's row is where the block can't run
+    (the runner refuses such a workflow), or is None: an else or end that comes before its
+    own opener or after its own end, one that closes its block while a block opened inside
+    it is still open, or an opener left without its end.
+    :param actions: the steps of one phase, in order
+    """
+    nesting = []
+    open_blocks = []  # uuids of the blocks the next step sits in, innermost last
+    numbers = {}  # block uuid -> its number
+    openers = {}  # block uuid -> (index of its opening row, how that row reads, e.g. "if x > 1")
+    for action in actions:
+        instrument, act, uid = action.get("instrument"), action.get("action"), action.get("uuid")
+        if instrument not in _BLOCK_INSTRUMENTS:
+            nesting.append((len(open_blocks), None, None))
+            continue
+        number = numbers.setdefault(uid, len(numbers))
+        if act not in _BLOCK_ENDS + ("else",):
+            name = f"{act} {(action.get('args') or {}).get('statement', '')}".strip()
+            openers[uid] = (len(nesting), name)
+            nesting.append((len(open_blocks), number, None))
+            open_blocks.append(uid)
+            continue
+        if uid not in open_blocks:
+            where = f"after its own {_END_OF[instrument]}" if uid in openers else f"before its own {instrument}"
+            nesting.append((len(open_blocks), number, f"This {act} comes {where}."))
+            continue
+        misplaced = None
+        if open_blocks[-1] != uid:
+            misplaced = (f"This {act} belongs to '{openers[uid][1]}' above, but "
+                         f"'{openers[open_blocks[-1]][1]}' inside it has not ended yet.")
+        nesting.append((open_blocks.index(uid), number, misplaced))
+        if act != "else":
+            open_blocks.remove(uid)
+    for uid in open_blocks:
+        index = openers[uid][0]
+        depth, number, _ = nesting[index]
+        instrument = actions[index].get("instrument")
+        nesting[index] = (depth, number, f"This {instrument} has no {_END_OF[instrument]} below it.")
+    return nesting
 
 
 def _action_button(action: dict, variables: dict, reference=None):

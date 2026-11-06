@@ -125,6 +125,30 @@ def test_reorder_steps_updates_current_draft_order(auth):
     assert [action['id'] for action in draft.script_dict['script']] == [1, 2, 3]
 
 
+def test_reorder_refuses_an_else_above_its_own_if(auth):
+    script = Script(author='testuser')
+    editor = ScriptEditor(script)
+    editor.add_logic_action('if', 'True')
+    editor.add_action({
+        'instrument': 'comment',
+        'action': 'comment',
+        'args': {'statement': 'inside'},
+        'return': '',
+        'arg_types': {'statement': 'str'},
+    }, insert_position=2)
+
+    with auth.application.app_context():
+        post_script_for_user('testuser', script, draft_id=session_draft_id(auth))
+
+    # if, comment, else, endif -> else, if, comment, endif
+    body = auth.post('/ivoryos/draft/steps/order', data={'order': '3,1,2,4'}).get_data(as_text=True)
+
+    assert "An else can&#39;t come before its own if. The steps were left in their old order." in body
+    with auth.application.app_context():
+        draft = get_script_for_user('testuser', session_draft_id(auth))
+    assert [action['action'] for action in draft.script_dict['script']] == ['if', 'comment', 'else', 'endif']
+
+
 def test_import_python_file_reports_missing_or_empty_upload(auth):
     no_file = auth.post('/ivoryos/draft/import_python_file', data={})
     assert no_file.status_code == 200
