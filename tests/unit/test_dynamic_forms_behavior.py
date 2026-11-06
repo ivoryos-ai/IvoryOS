@@ -229,6 +229,30 @@ def test_create_action_button_indents_steps_inside_control_blocks():
     buttons = create_action_button(script)
 
     assert [button["depth"] for button in buttons] == [0, 1, 2, 1, 2, 3, 2, 1, 0, 0]
+    # only a block's own rows carry its number; the steps inside and after the blocks none
+    assert [button["block"] for button in buttons] == [0, 1, None, 1, 2, None, 2, 1, 0, None]
+
+
+def test_create_action_button_gives_each_block_its_own_number():
+    script = Script(author="tester")
+    script.script_dict["script"] = [
+        _step(1, "while", "while", 1, "x < 3"),
+        _step(2, "repeat", "repeat", 2, 2),
+        _step(3, "variable", "a", 3, 1),
+        _step(4, "repeat", "endrepeat", 2),
+        _step(5, "variable", "b", 4, 1),
+        _step(6, "while", "endwhile", 1),
+        _step(7, "if", "if", 5, "True"),
+        _step(8, "variable", "c", 6, 1),
+        _step(9, "if", "else", 5),
+        _step(10, "if", "endif", 5),
+    ]
+
+    buttons = create_action_button(script)
+
+    assert [button["depth"] for button in buttons] == [0, 1, 2, 1, 1, 0, 0, 1, 0, 0]
+    # b is back in the while once the repeat inside it ends; the if after it is a new block
+    assert [button["block"] for button in buttons] == [0, 1, None, 1, None, 0, 2, None, 2, 2]
 
 
 def test_create_action_button_depth_never_goes_negative_for_steps_out_of_order():
@@ -243,8 +267,50 @@ def test_create_action_button_depth_never_goes_negative_for_steps_out_of_order()
 
     buttons = create_action_button(script)
 
-    # the stray else still opens a level, so the broken order shows up as odd indentation
-    assert [button["depth"] for button in buttons] == [0, 0, 1, 1, 2]
+    assert [button["depth"] for button in buttons] == [0, 0, 0, 0, 1]
+    assert [button["structure_issue"] for button in buttons] == [
+        "This endif comes before its own if.",
+        "This else comes before its own if.",
+        None,
+        "This if has no endif below it.",
+        None,
+    ]
+
+
+def test_create_action_button_flags_a_block_closed_while_one_inside_it_is_open():
+    script = Script(author="tester")
+    script.script_dict["script"] = [
+        _step(1, "if", "if", 1, "a"),
+        _step(2, "if", "if", 2, "b"),
+        _step(3, "if", "else", 1),
+        _step(4, "variable", "x", 3, 1),
+        _step(5, "if", "endif", 1),
+        _step(6, "if", "else", 2),
+        _step(7, "if", "endif", 2),
+    ]
+
+    buttons = create_action_button(script)
+
+    crossed = "belongs to 'if a' above, but 'if b' inside it has not ended yet."
+    assert [button["structure_issue"] for button in buttons] == [
+        None, None, f"This else {crossed}", None, f"This endif {crossed}", None, None,
+    ]
+    # a crossed row is drawn at its own block's depth
+    assert [button["depth"] for button in buttons] == [0, 1, 0, 2, 0, 0, 0]
+
+
+def test_create_action_button_accepts_an_if_without_an_else():
+    script = Script(author="tester")
+    script.script_dict["script"] = [
+        _step(1, "if", "if", 1, "a"),
+        _step(2, "variable", "x", 2, 1),
+        _step(3, "if", "endif", 1),
+    ]
+
+    buttons = create_action_button(script)
+
+    assert [button["depth"] for button in buttons] == [0, 1, 0]
+    assert [button["structure_issue"] for button in buttons] == [None, None, None]
 
 
 def hook_like_param_names(count: int, index: int, filter_count: int, filter_index: int, validate_count: str = ""):

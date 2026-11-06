@@ -78,6 +78,44 @@ class ScriptEditor:
                 if isinstance(args[arg], str) and not args[arg].startswith("#"):
                     args[arg] = getattr(builtins, arg_type)(parse_collection_text(args[arg]))
 
+    @staticmethod
+    def block_order_problem(actions, before=None):
+        """
+        Why an order of steps puts an if/while/repeat block's own rows out of their order, or
+        None. A block's rows share a uuid and must come opener first, then its else, then its
+        end. A block that crosses another one is not refused here (the canvas flags it): a step
+        moves one row at a time, so it can pass through that on the way to a valid order.
+        :param actions: the steps of one phase, in the new order
+        :param before: the same steps in the old order; when given, only a block the move puts
+            out of order counts, so a draft that already has one (saved before this check, or
+            written by the design agent) can still be put right one move at a time
+        """
+        now = ScriptEditor._misordered_blocks(actions)
+        if before is not None:
+            was = ScriptEditor._misordered_blocks(before)
+            now = {uid: problem for uid, problem in now.items() if uid not in was}
+        return next(iter(now.values()), None)
+
+    @staticmethod
+    def _misordered_blocks(actions):
+        """The blocks whose own rows are out of order, as {uuid: why}, in the order found."""
+        rank = {"else": 1, "endif": 2, "endwhile": 2, "endrepeat": 2}  # an opener is 0
+        reached = {}  # block uuid -> rank of the block's furthest row so far
+        found = {}
+        for action in actions:
+            instrument = action.get("instrument")
+            if instrument not in ("if", "while", "repeat"):
+                continue
+            uid, act = action.get("uuid"), action.get("action")
+            this = rank.get(act, 0)
+            if this and uid not in reached:
+                found.setdefault(uid, f"An {act} can't come before its own {instrument}.")
+            elif this < reached.get(uid, 0):
+                found.setdefault(uid, f"An else can't come after its own end{instrument}.")
+            if uid in reached or not this:
+                reached[uid] = max(reached.get(uid, 0), this)
+        return found
+
     def _sort(self, script_type):
         for i, action in enumerate(self.script.script_dict[script_type]):
             action['id'] = i + 1

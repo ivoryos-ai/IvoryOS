@@ -779,6 +779,23 @@ ul.reorder {
     padding-left: 0.4rem;
 }
 
+/* The design canvas's if/while/repeat blocks: a block's own rows (if, else, endif) share a
+   rail colour, so it is clear which rows go together and which ones a delete takes with it.
+   The id selector beats Bootstrap's .border !important, which a step flagged against the
+   deck carries. Muted tones that sit with the teal theme and the pastel step colours rather
+   than compete with them: only two cool ones, the rest told apart by lightness as well as hue,
+   in an order where each colour differs most from the next (a block and the one inside it).
+   No purple: on a step it means "batch"; no khaki: it marks a variable with no definition. */
+#list .block-rail {
+    border-left: 3px solid var(--block-rail) !important;
+}
+#list .block-rail-0 { --block-rail: #487e8b; }  /* teal */
+#list .block-rail-1 { --block-rail: #a0895a; }  /* ochre */
+#list .block-rail-2 { --block-rail: #986754; }  /* terracotta */
+#list .block-rail-3 { --block-rail: #8293b2; }  /* dusty blue */
+#list .block-rail-4 { --block-rail: #887e74; }  /* taupe */
+#list .block-rail-5 { --block-rail: #865a67; }  /* wine */
+
 /* the toolbox's tools row: one control above the groups, which scroll on their own below it so
    the scrollbar starts under the row. The search box across every group, then the auto fill (#)
    and fold-all toggles, which share the box's border and are lit while on. */

@@ -220,7 +220,8 @@ def update_list():
     order = request.form.get('order', '')
     script = get_script_file()
     editor = ScriptEditor(script)
-    
+    warning = None
+
     if order:
         order_ids = [int(i) for i in order.split(",") if i.strip()]
         action_dict = {action['id']: action for action in editor.currently_editing_script}
@@ -229,20 +230,25 @@ def update_list():
             if action_id in action_dict:
                 new_script.append(action_dict[action_id])
                 del action_dict[action_id]
-        
+
         # Append any remaining actions just in case
         new_script.extend(action_dict.values())
-        editor.currently_editing_script = new_script
-        
-    editor.sort_actions()
-    warning = None
+        # an else or end can't be moved above its own if/while/repeat, nor an else below its end:
+        # the move is refused and the canvas comes back in its old order
+        problem = ScriptEditor.block_order_problem(new_script, before=editor.currently_editing_script)
+        if problem:
+            warning = f"{problem} The steps were left in their old order."
+        else:
+            editor.currently_editing_script = new_script
 
-    post_script_file(script)
-    try:
-        exec_string = ScriptRenderer(script).compile(current_app.config['SCRIPT_FOLDER'])
-    except Exception as e:
-        exec_string = {}
-        warning = f"Compilation failed: {str(e)}"
+    if not warning:
+        editor.sort_actions()
+        post_script_file(script)
+        try:
+            exec_string = ScriptRenderer(script).compile(current_app.config['SCRIPT_FOLDER'])
+        except Exception as e:
+            exec_string = {}
+            warning = f"Compilation failed: {str(e)}"
     # session['python_code'] = exec_string
 
     # Return the updated canvas HTML instead of JSON

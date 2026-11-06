@@ -90,8 +90,10 @@ function initializeCanvas() {
                 data: order_string,
                 cache: false,
                 success: function (data) {
-                    // Update the canvas content with the new HTML
+                    // Update the canvas content with the new HTML: the old order when the move
+                    // was refused (an else dragged above its own if), which the warning explains
                     updateActionCanvas(data);
+                    if (typeof showWarningIfExists === "function") showWarningIfExists(data);
                     if (typeof refreshSidebarVariables === "function") {
                         refreshSidebarVariables();
                     }
