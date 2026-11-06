@@ -203,6 +203,50 @@ def test_create_action_button_formats_variables_returns_and_missing_outputs():
     assert buttons[1]["style"] == "background-color: khaki"
 
 
+def _step(step_id, instrument, action, uid, statement=None):
+    args = {"statement": statement} if statement is not None else {}
+    step = {"id": step_id, "uuid": uid, "instrument": instrument, "action": action, "args": args, "return": ""}
+    if statement is not None:
+        step["arg_types"] = {"statement": "int" if instrument == "variable" else ""}
+    return step
+
+
+def test_create_action_button_indents_steps_inside_control_blocks():
+    script = Script(author="tester")
+    script.script_dict["script"] = [
+        _step(1, "while", "while", 1, "x < 3"),
+        _step(2, "if", "if", 2, "x > 1"),
+        _step(3, "variable", "x", 3, 1),
+        _step(4, "if", "else", 2),
+        _step(5, "repeat", "repeat", 4, 2),
+        _step(6, "variable", "y", 5, 2),
+        _step(7, "repeat", "endrepeat", 4),
+        _step(8, "if", "endif", 2),
+        _step(9, "while", "endwhile", 1),
+        _step(10, "variable", "z", 6, 3),
+    ]
+
+    buttons = create_action_button(script)
+
+    assert [button["depth"] for button in buttons] == [0, 1, 2, 1, 2, 3, 2, 1, 0, 0]
+
+
+def test_create_action_button_depth_never_goes_negative_for_steps_out_of_order():
+    script = Script(author="tester")
+    script.script_dict["script"] = [
+        _step(1, "if", "endif", 1),
+        _step(2, "if", "else", 1),
+        _step(3, "variable", "x", 2, 1),
+        _step(4, "if", "if", 1, "True"),
+        _step(5, "variable", "y", 3, 2),
+    ]
+
+    buttons = create_action_button(script)
+
+    # the stray else still opens a level, so the broken order shows up as odd indentation
+    assert [button["depth"] for button in buttons] == [0, 0, 1, 1, 2]
+
+
 def hook_like_param_names(count: int, index: int, filter_count: int, filter_index: int, validate_count: str = ""):
     return count, index, filter_count, filter_index, validate_count
 

@@ -1403,7 +1403,37 @@ def create_action_button(script, stype=None, reference=None):
     variables = ScriptEditor(script).get_variables()
     if reference is None:
         reference = current_reference()
-    return [_action_button(i, variables, reference) for i in script.get_script(stype)]
+    actions = script.get_script(stype)
+    buttons = []
+    for action, depth in zip(actions, _nesting_depths(actions)):
+        button = _action_button(action, variables, reference)
+        button["depth"] = depth
+        buttons.append(button)
+    return buttons
+
+
+_BLOCK_INSTRUMENTS = ("if", "while", "repeat")
+_BLOCK_ENDS = ("endif", "endwhile", "endrepeat")
+
+
+def _nesting_depths(actions):
+    """
+    How deep each step sits inside if/while/repeat blocks, so the canvas can indent it.
+    A block's own rows (if, else, endif) sit at the block's depth and the steps between
+    them one level further in. Steps out of order (an endif dragged above its if) never
+    go below 0.
+    :param actions: the steps of one phase, in order
+    """
+    depths = []
+    depth = 0
+    for action in actions:
+        is_block = action.get("instrument") in _BLOCK_INSTRUMENTS
+        if is_block and action.get("action") in _BLOCK_ENDS + ("else",):
+            depth = max(0, depth - 1)
+        depths.append(depth)
+        if is_block and action.get("action") not in _BLOCK_ENDS:
+            depth += 1
+    return depths
 
 
 def _action_button(action: dict, variables: dict, reference=None):
