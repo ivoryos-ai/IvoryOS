@@ -5,13 +5,14 @@ import inspect
 import inspect
 import asyncio
 import ast
+import logging
 import threading
 from concurrent.futures import Future
 from datetime import datetime
 
 from ivoryos.utils.decorators import BUILDING_BLOCKS
 from ivoryos.models import db, SingleStep
-from ivoryos.runtime.safety import guard
+from ivoryos.runtime.safety import guard, SafetyViolation
 from ivoryos.parsers.structured_types import (
     is_dict_annotation, is_list_annotation, is_scalar_annotation, is_set_annotation, is_tuple_annotation, to_dict,
     to_list, to_scalar, to_set, to_tuple,
@@ -22,6 +23,10 @@ from ivoryos.utils.enums import (
 from ivoryos.runtime.state import GlobalState
 
 global_state = GlobalState()
+
+# the logger a workflow run reports to (set up in create_app): the log file in the data folder
+# and the log panel of open pages
+logger = logging.getLogger("gui_logger")
 
 INTERRUPTED = "Interrupted: the server stopped before this step finished"
 
@@ -39,6 +44,20 @@ def mark_interrupted_steps():
         {"run_error": INTERRUPTED})
     db.session.commit()
     return count
+
+
+def _call_keeping_traceback(function, kwargs):
+    """
+    Call a blocking method on a worker thread and hand back what it raised instead of raising it.
+    asyncio rebuilds a plain ``TimeoutError`` (a socket or serial timeout) that crosses over from a
+    thread, which drops the frames inside the driver from its traceback.
+
+    :return: (output, None), or (None, the exception)
+    """
+    try:
+        return function(**kwargs), None
+    except Exception as e:
+        return None, e
 
 
 class TaskRunner:
@@ -167,6 +186,7 @@ class TaskRunner:
             function_executable = self._get_executable(component, global_state.deck, method)
             method_name = f"{component}.{method}"
         except Exception as e:
+            logger.error(f"Error finding '{component}.{method}': {e}", exc_info=True)
             if acquired:
                 self._release()
             output = {"status": "error", "msg": str(e)}
@@ -202,11 +222,17 @@ class TaskRunner:
                 if inspect.iscoroutinefunction(function_executable):
                     output = await function_executable(**kwargs)
                 else:
-                    output = await asyncio.to_thread(function_executable, **kwargs)
+                    output, error = await asyncio.to_thread(_call_keeping_traceback, function_executable, kwargs)
+                    if error is not None:
+                        raise error
                 output = sanitize_for_json(output)
                 step.output = output
                 success = True
             except Exception as e:
+                # the page and the step's record keep only the message; the traceback goes to the log.
+                # a refusal by the limits is not a crash, so it gets no traceback
+                logger.error(f"Error executing '{method_name}' with args {kwargs}: {e}",
+                             exc_info=not isinstance(e, SafetyViolation))
                 step.run_error = str(e)
                 success = False
                 output = str(e)
