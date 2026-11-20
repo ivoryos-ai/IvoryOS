@@ -120,7 +120,9 @@ def _get_deck_info(add_flow_control = True, add_class_info = True):
         if instrument == 'deck_name':
             continue
         
-        instrument_identifier = str(instrument).removeprefix('deck.')
+        instrument_identifier = str(instrument)
+        if instrument_identifier.startswith('deck.'):  # str.removeprefix is Python 3.9+
+            instrument_identifier = instrument_identifier[len('deck.'):]
         
         if add_class_info == True:
             class_name = type(deck_with_class_info[instrument_identifier]).__name__ or None

@@ -114,7 +114,7 @@ WorkflowRun  (one per execution button press)
 ### 4. Script Runner Concurrency Pattern
 - `ScriptRunner` runs inside a **background thread** (via `threading.Thread`), but each individual `_execute_action` is `async` and runs under `asyncio.run(...)`.
 - `threading.Lock` (`global_state.runner_lock`) gates the runner; check `self.lock.locked()` before starting a new run.
-- Blocking instrument calls must be offloaded with `await asyncio.to_thread(method, **args)`.
+- Blocking instrument calls must be offloaded with `await to_thread(method, **args)`, importing `to_thread` from `ivoryos.utils.compat`: `asyncio.to_thread` does not exist before Python 3.9.
 - Native coroutine instrument calls use `await method(**args)` directly (flagged by `step["coroutine"] == True`).
 - **pause/resume** is implemented with `threading.Event` (`pause_event`). Steps call `self.pause_event.wait()` at safe checkpoints.
 - **stop** uses two separate events: `stop_pending_event` (finish current iteration, stop before next) and `stop_current_event` (abort mid-step immediately).
@@ -201,7 +201,7 @@ Key events received from the client:
 - Match the existing style and format in Python files.
 - Python 3.9+ compatible syntax only (no `match/case`, no `|` union syntax in type hints).
 - Maintain existing docstrings and typing annotations when refactoring.
-- Ensure async code uses the `asyncio.to_thread` / `await` patterns shown in `script_runner_steps.py`.
+- Ensure async code uses the `to_thread` (from `ivoryos.utils.compat`, not `asyncio.to_thread`) / `await` patterns shown in `script_runner_steps.py`.
 - Preserve explicit `try...finally` blocks in runner code — they guarantee DB records and CSV output remain consistent even on crash.
 - Use `sanitize_for_json()` before storing any Python object to a `JSONType` DB column.
 - Do **not** call `time.sleep()` inside async steps — use `self.safe_sleep()` which respects the stop event.
