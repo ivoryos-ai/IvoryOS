@@ -5,6 +5,7 @@ import uuid
 from ivoryos.runtime.state import GlobalState
 from ivoryos.parsers.structured_types import is_dict_annotation, structured_value_from_node
 from ivoryos.parsers.introspection import _get_type_from_parameters
+from ivoryos.utils.compat import unparse
 
 global_state = GlobalState()
 
@@ -72,12 +73,12 @@ def convert_to_cards(source_code: str):
             if isinstance(node, ast.Name):
                 value = f"#{node.id}"
                 return value, self.defined_types.get(node.id, infer_type(value))
-            value = ast.unparse(node)
+            value = unparse(node, source_code)
             return value, infer_type(value)
 
         def visit_FunctionDef(self, node):
             self.defined_types = {
-                arg.arg: ast.unparse(arg.annotation) if arg.annotation else "float"
+                arg.arg: unparse(arg.annotation, source_code) if arg.annotation else "float"
                 for arg in node.args.args
             }
             for stmt in node.body:
@@ -90,7 +91,7 @@ def convert_to_cards(source_code: str):
             add_card({
                 "action": "if",
                 "arg_types": {"statement": ""},
-                "args": {"statement": ast.unparse(node.test)},
+                "args": {"statement": unparse(node.test, source_code)},
                 "id": new_id(),
                 "instrument": "if",
                 "return": "",
@@ -129,7 +130,7 @@ def convert_to_cards(source_code: str):
             add_card({
                 "action": "while",
                 "arg_types": {"statement": ""},
-                "args": {"statement": ast.unparse(node.test)},
+                "args": {"statement": unparse(node.test, source_code)},
                 "id": new_id(),
                 "instrument": "while",
                 "return": "",
@@ -290,7 +291,7 @@ def convert_to_cards(source_code: str):
             for kw in node.keywords:
                 if kw.arg is None and isinstance(kw.value, ast.Dict):
                     for k_node, v_node in zip(kw.value.keys, kw.value.values):
-                        key = k_node.value if isinstance(k_node, ast.Constant) else ast.unparse(k_node)
+                        key = k_node.value if isinstance(k_node, ast.Constant) else unparse(k_node, source_code)
                         value, value_type = self.value_and_type_from_node(v_node, annotations.get(key))
                         args[key] = value
                         arg_types[key] = value_type

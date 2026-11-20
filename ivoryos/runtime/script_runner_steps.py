@@ -1,5 +1,4 @@
 import re
-import asyncio
 import inspect
 from datetime import datetime
 from typing import Any, Dict, List
@@ -13,6 +12,7 @@ from ivoryos.models import WorkflowStep, db
 from ivoryos.parsers.structured_types import substitute_variables, to_containers
 from ivoryos.parsers.returns import store_return_value
 from ivoryos.parsers.serialize import sanitize_for_json
+from ivoryos.utils.compat import to_thread
 from ivoryos.utils.decorators import BUILDING_BLOCKS
 from ivoryos.utils.expressions import evaluate
 
@@ -405,7 +405,7 @@ class ScriptRunnerStepMixin:
                             if step.get("coroutine", False):
                                 result = await attr(**call_args)
                             else:
-                                result = await asyncio.to_thread(attr, **call_args)
+                                result = await to_thread(attr, **call_args)
                         else:
                             # Handle property setter/getter
                             if "value" in substituted_args:
@@ -439,7 +439,7 @@ class ScriptRunnerStepMixin:
                         if step.get("coroutine", False):
                             result = await method(**call_args)
                         else:
-                            result = await asyncio.to_thread(method, **call_args)
+                            result = await to_thread(method, **call_args)
 
                         # # Store return value if specified
                         # return_var = step.get("return", "")
@@ -455,7 +455,7 @@ class ScriptRunnerStepMixin:
                     if step.get("coroutine", False):
                         result = await method(**call_args)
                     else:
-                        result = await asyncio.to_thread(method, **call_args)
+                        result = await to_thread(method, **call_args)
                         # Store return value if specified
                 return_var = step.get("return", "")
                 if return_var and result is not None:

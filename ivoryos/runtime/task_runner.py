@@ -10,6 +10,7 @@ import threading
 from concurrent.futures import Future
 from datetime import datetime
 
+from ivoryos.utils.compat import to_thread
 from ivoryos.utils.decorators import BUILDING_BLOCKS
 from ivoryos.models import db, SingleStep
 from ivoryos.runtime.safety import guard, SafetyViolation
@@ -222,7 +223,7 @@ class TaskRunner:
                 if inspect.iscoroutinefunction(function_executable):
                     output = await function_executable(**kwargs)
                 else:
-                    output, error = await asyncio.to_thread(_call_keeping_traceback, function_executable, kwargs)
+                    output, error = await to_thread(_call_keeping_traceback, function_executable, kwargs)
                     if error is not None:
                         raise error
                 output = sanitize_for_json(output)

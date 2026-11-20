@@ -84,6 +84,9 @@ def _resolve_type_string(annotation):
         arg_type = _literal_type_string(annotation)
     elif hasattr(annotation, '__name__'):
         arg_type = annotation.__name__
+    elif getattr(annotation, '_name', None):
+        # List[int] and the like have no __name__ before Python 3.10
+        arg_type = annotation._name
     else:
         arg_type = str(annotation)
     return arg_type

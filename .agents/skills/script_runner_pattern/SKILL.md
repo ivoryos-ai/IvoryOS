@@ -44,14 +44,14 @@ Flask request thread
        └─ asyncio.run(...)  ← each phase section gets its own event loop
             └─ await _execute_steps_batched(...)
                  └─ await _execute_action(...)
-                      ├─ await asyncio.to_thread(blocking_method, **args)  ← blocking instruments
+                      ├─ await to_thread(blocking_method, **args)  ← blocking instruments
                       └─ await async_method(**args)                         ← native coroutines
 ```
 
 **Key rules:**
 - `asyncio.run()` is called from a background thread — this is correct and intentional.
 - Do **not** share an event loop across threads.
-- Blocking instrument calls: `await asyncio.to_thread(method, **kwargs)`.
+- Blocking instrument calls: `await to_thread(method, **kwargs)`, with `to_thread` from `ivoryos.utils.compat` (`asyncio.to_thread` does not exist before Python 3.9).
 - Native `async` instrument methods: detected by `step["coroutine"] == True`, called with `await method(**kwargs)`.
 - Detecting coroutines: `inspect.iscoroutinefunction(method)` is used at schema-build time in `introspection.py`.
 
@@ -76,7 +76,7 @@ step_id = step_db.id   # ← save before commit resets it
 db.session.commit()    # ← commit early, releases SQLite lock
 
 try:
-    result = await asyncio.to_thread(method, **args)
+    result = await to_thread(method, **args)
 except Exception as e:
     step_db = db.session.get(WorkflowStep, step_id)  # re-fetch after commit
     step_db.run_error = True
@@ -110,7 +110,7 @@ while True:
 
     try:
         # 2. Run the action
-        result = await asyncio.to_thread(method, **args)
+        result = await to_thread(method, **args)
 
     except HumanInterventionRequired as e:
         # 3a. Pause and wait for user to resolve
