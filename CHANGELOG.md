@@ -1,4 +1,8 @@
 ﻿# Changelog
+## 1.8.2 (November 19th, 2026)
+- !236 **[Bug]** resolve instrument calls failing on Python 3.8 with `module 'asyncio' has no attribute 'to_thread'`, along with Python script import and `Optional[List]`/`Optional[Tuple]` argument types on Python 3.8 and 3.9
+- !235 **[QoL]** log the full traceback when a method run from the Instruments page fails
+
 ## 1.8.1 (November 6th, 2026)
 - !234 **[QoL]** indent and color `if`/`while`/`repeat` blocks on the design canvas, flag misplaced block rows, and refuse moving an `else` or end out of order
 - !231 **[Bug]** resolve expressions in `variable`, `math` and `if`/`while` steps, such as `#name + "_A"`, `f"{name}_A"` and `#x > 5`
