@@ -83,7 +83,9 @@ def import_deck():
     try:
         module = import_module_by_filepath(filepath=filepath, name=name)
         save_to_history(filepath, current_app.config["DECK_HISTORY"])
-        module_sigs = generate_interface_schema(module, save=update, output_path=current_app.config["DUMMY_DECK"])
+        module_sigs = generate_interface_schema(module, save=update, output_path=current_app.config["DUMMY_DECK"],
+                                                exclude_names=current_app.config.get("DECK_EXCLUDE_NAMES"),
+                                                include_names=current_app.config.get("DECK_INCLUDE_NAMES"))
         if not len(module_sigs) > 0:
             flash("Invalid hardware deck, connect instruments in deck script", "error")
             return redirect(url_for("control.deck_controllers"))

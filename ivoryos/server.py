@@ -127,6 +127,7 @@ def run(module=None, host="0.0.0.0", port=None, debug=None, llm_server=None, mod
         enable_design: bool = True,
         blueprint_plugins: Union[list, Blueprint] = [],
         exclude_names: list = [],
+        include_names: list = None,
         notification_handler=None,
         optimizer_registry: dict = None,
         templates_dir: str = "templates",
@@ -146,6 +147,8 @@ def run(module=None, host="0.0.0.0", port=None, debug=None, llm_server=None, mod
     :param enable_design: enable design canvas, database and workflow execution
     :param blueprint_plugins: Union[list[Blueprint], Blueprint] custom Blueprint pages
     :param exclude_names: list[str] module names to exclude from parsing
+    :param include_names: list[str] module names to parse even though ivoryOS would skip them as not
+        instruments, such as an object from the standard library, pandas, numpy or flask
     :param notification_handler: notification handler function
     :param templates_dir: directory to import templates from, defaults to "templates"
     """
@@ -190,6 +193,9 @@ def run(module=None, host="0.0.0.0", port=None, debug=None, llm_server=None, mod
         global_state.optimizers = optimizer_registry
     else:
         global_state.optimizers = OPTIMIZER_REGISTRY
+    # kept for decks imported later from the Instruments page
+    app.config["DECK_EXCLUDE_NAMES"] = list(exclude_names or [])
+    app.config["DECK_INCLUDE_NAMES"] = list(include_names or [])
     if module:
         app.config["MODULE"] = module
         app.config["OFF_LINE"] = False
@@ -198,7 +204,8 @@ def run(module=None, host="0.0.0.0", port=None, debug=None, llm_server=None, mod
         global_state.interface_schema = generate_interface_schema(global_state.deck,
                                                                  output_path=dummy_deck_path,
                                                                  save=True,
-                                                                 exclude_names=exclude_names
+                                                                 exclude_names=exclude_names,
+                                                                 include_names=include_names,
                                                                  )
         global_state.api_variables = create_module_interface_schema(global_state.deck)
 

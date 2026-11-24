@@ -22,6 +22,34 @@ Launch IvoryOS
 .. autofunction:: ivoryos.run
 
 
+Choose which objects become instruments
+---------------------------------------
+
+At startup IvoryOS looks at every module-level object in your script and lists each one it parses as an instrument. It skips objects that are not instruments:
+
+- plain values, imported modules, classes and functions
+- names that start with ``_`` or a capital letter
+- objects whose class comes from the Python standard library, such as a ``Path``, ``Lock``, ``Queue`` or ``Logger``
+- data, plotting and web objects, such as a pandas ``DataFrame``, a numpy array, a matplotlib figure or a Flask app
+- objects with no public method or property
+
+Objects from your own code and from instrument driver packages, such as ``pyserial`` or ``pyvisa``, are parsed. The console lists what was skipped and why.
+
+To hide an object, or to parse one that was skipped:
+
+.. code-block:: python
+
+   import pandas as pd
+
+   calibration = pd.DataFrame(...)  # skipped: a pandas DataFrame
+   OT2 = OpentronsDriver(...)       # skipped: the name starts with a capital letter
+   camera = Camera(...)             # parsed, but you want it hidden
+
+   ivoryos.run(__name__, exclude_names=["camera"], include_names=["OT2"])
+
+A name in both lists stays hidden.
+
+
 Add loggers
 -----------
 
