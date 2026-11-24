@@ -166,6 +166,10 @@ Key events received from the client:
 
 ### 8. Instrument Introspection
 - `generate_interface_schema(deck, ...)` in `ivoryos/parsers/introspection.py` reflects the deck object and builds the JSON schema used by the UI.
+- Module-level objects that are not instruments are skipped: objects whose class comes from the standard
+  library or a package in `NON_INSTRUMENT_PACKAGES` (pandas, numpy, flask…), matched on the class's
+  `__module__` string so nothing is imported, and objects with no public method or property. Add a package to
+  that set rather than an `isinstance` check. Users override with `run(exclude_names=…, include_names=…)`.
 - Only **public** methods (not starting with `_`) and not `UPPERCASE` are included.
 - Methods with unsupported parameter types (`BinaryIO`, `TextIO`, etc.) are filtered out automatically.
 - Properties with a setter are exposed as `method_name_(setter)` in the step schema.

@@ -1,8 +1,8 @@
 import inspect
 import pickle
 import os
-import flask
-import logging
+import sys
+import sysconfig
 from enum import Enum
 try:
     from typing import get_args, get_origin, Literal
@@ -14,6 +14,54 @@ from ivoryos.utils.enums import _UNIONS
 
 
 UNSUPPORTED_PARAMETER_TYPES = ["BinaryIO", "TextIO", "BytesIO", "typing.IO"]
+
+# A deck object whose class comes from one of these packages is data, a plot or part of a web
+# app, not an instrument: a module-level DataFrame or Flask app is not parsed. Standard library
+# objects (Path, Lock, Queue, Logger...) are skipped the same way. Only the name of the class's
+# module is compared, so none of these packages is imported.
+NON_INSTRUMENT_PACKAGES = frozenset({
+    "numpy", "pandas", "polars", "pyarrow", "scipy", "xarray", "sympy",
+    "matplotlib", "seaborn", "plotly", "bokeh", "PIL",
+    "sklearn", "torch", "tensorflow", "jax",
+    "flask", "flask_login", "flask_socketio", "flask_sqlalchemy", "flask_wtf",
+    "werkzeug", "jinja2", "sqlalchemy", "socketio", "engineio",
+    "requests", "httpx", "openai",
+})
+
+
+def _is_stdlib_by_location(package: str) -> bool:
+    """Whether the imported top-level module ``package`` was loaded from the standard library.
+
+    Fallback for Python < 3.10, which has no ``sys.stdlib_module_names``.
+    """
+    if package in sys.builtin_module_names:
+        return True
+    path = getattr(sys.modules.get(package), "__file__", None)
+    if not path:
+        return False
+    path = os.path.normcase(os.path.realpath(path))
+    if "site-packages" in path or "dist-packages" in path:
+        return False
+    paths = sysconfig.get_paths()
+    # Windows keeps the standard library's C extensions in DLLs, beside Lib
+    roots = {paths["stdlib"], paths["platstdlib"], os.path.join(sys.base_prefix, "DLLs")}
+    return any(path.startswith(os.path.normcase(os.path.realpath(root)) + os.sep) for root in roots)
+
+
+def _is_stdlib(package: str) -> bool:
+    """Whether ``package``, a top-level module name, belongs to the standard library."""
+    names = getattr(sys, "stdlib_module_names", None)
+    if names is not None:
+        return package in names
+    return _is_stdlib_by_location(package)
+
+
+def _non_instrument_package(val) -> str:
+    """The package ``val``'s class comes from when that makes it no instrument, else ``''``."""
+    package = (getattr(type(val), "__module__", None) or "").split(".")[0]
+    if package and (package in NON_INSTRUMENT_PACKAGES or _is_stdlib(package)):
+        return package
+    return ""
 
 
 def _inspect_class(class_object=None, debug=False):
@@ -239,38 +287,57 @@ def _get_return_type_from_string(annotation):
     return {"kind": "scalar", "types": [annotation], "annotation": annotation}
 
 
-def generate_interface_schema(deck, save: bool = False, output_path: str = '', exclude_names: list = []):
+def generate_interface_schema(deck, save: bool = False, output_path: str = '', exclude_names: list = None,
+                              include_names: list = None):
     """
     Create an interface schema of the given script
+
+    Module attributes that are not instruments are skipped: plain values, modules, classes and
+    functions; names starting with ``_`` or a capital letter; objects whose class comes from the
+    standard library or a package in ``NON_INSTRUMENT_PACKAGES``; and objects with no public
+    method or property.
+
+    :param exclude_names: attribute names never to parse
+    :param include_names: attribute names to parse even when the rules above would skip them
+                          (except plain values, modules, classes and functions)
     """
-    exclude_classes = (flask.Blueprint, logging.Logger)
+    exclude_names = set(exclude_names or ())
+    include_names = set(include_names or ())
 
     interface_schema = {}
     included = {}
-    excluded = {}
+    skipped = {}  # objects skipped as not instruments, listed at startup
     failed = {}
 
     for name, val in vars(deck).items():
         qualified_name = f"deck.{name}"
+        class_name = type(val).__name__
 
-        if (
-                type(val).__module__ == 'builtins'
-                or name[0].isupper()
-                or name.startswith("_")
-                or isinstance(val, exclude_classes)
-                or name in exclude_names
-        ):
-            excluded[qualified_name] = type(val).__name__
+        if type(val).__module__ == 'builtins' or name in exclude_names:
             continue
+        forced = name in include_names
+        if not forced:
+            if name[0].isupper() or name.startswith("_"):
+                continue
+            package = _non_instrument_package(val)
+            if package:
+                skipped[qualified_name] = f"{class_name} ({package})"
+                continue
 
         try:
-            interface_schema[qualified_name] = _inspect_class(val)
-            included[qualified_name] = type(val).__name__
+            functions = _inspect_class(val)
         except Exception as e:
             failed[qualified_name] = str(e)
+            continue
+        if not functions and not forced:
+            skipped[qualified_name] = f"{class_name} (no public methods)"
+            continue
+        interface_schema[qualified_name] = functions
+        included[qualified_name] = class_name
 
     deck_summary = {
         "included": included,
+        "skipped": skipped,
         "failed": failed
     }
 
@@ -287,6 +354,9 @@ def generate_interface_schema(deck, save: bool = False, output_path: str = '', e
                 print(f"  {name}: {class_type}")
 
         print_section("INCLUDED MODULES [ok]", deck_summary["included"])
+        if deck_summary["skipped"]:
+            print_section("SKIPPED, NOT INSTRUMENTS [skip]", deck_summary["skipped"])
+            print("  To parse one anyway, pass its name in ivoryos.run(..., include_names=[...])")
         print_section("FAILED MODULES [err]", deck_summary["failed"])
         print("\n")
 
