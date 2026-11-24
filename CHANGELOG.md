@@ -1,4 +1,8 @@
 ﻿# Changelog
+## 1.8.3 (November 24th, 2026)
+- !237 **[Bug]** stop parsing DataFrames, numpy arrays, Flask apps and standard library objects (`Path`, `Lock`, `Logger`...) in the deck script as instruments
+- !237 **[QoL]** add `include_names` to `ivoryos.run()` to parse a skipped object anyway, and list skipped objects at startup
+
 ## 1.8.2 (November 19th, 2026)
 - !236 **[Bug]** resolve instrument calls failing on Python 3.8 with `module 'asyncio' has no attribute 'to_thread'`, along with Python script import and `Optional[List]`/`Optional[Tuple]` argument types on Python 3.8 and 3.9
 - !235 **[QoL]** log the full traceback when a method run from the Instruments page fails
