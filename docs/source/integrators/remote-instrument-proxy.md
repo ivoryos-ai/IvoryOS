@@ -11,25 +11,14 @@ Use this pattern when:
 
 ## Model
 
-```text
-Platform A Workflow                 Platform B Workflow
-        |                                   |
-        | imports proxy client              | imports proxy client
-        v                                   v
-  balance.read_mass_mg()              balance.read_mass_mg()
-        |                                   |
-        +------------- HTTP POST -----------+
-                      |
-                      v
-          IvoryOS Instrument Server
-          /ivoryos/instruments/deck.balance
-                      |
-                      v
-              Real Python Driver
-              AnalyticalBalance.read_mass_mg()
-                      |
-                      v
-              Balance on COM4 / USB / LAN
+```mermaid
+flowchart TD
+    a["Platform A Workflow"] -->|imports proxy client| call_a["balance.read_mass_mg()"]
+    b["Platform B Workflow"] -->|imports proxy client| call_b["balance.read_mass_mg()"]
+    call_a -->|HTTP POST| server["IvoryOS Instrument Server<br>/ivoryos/instruments/deck.balance"]
+    call_b -->|HTTP POST| server
+    server --> driver["Real Python Driver<br>AnalyticalBalance.read_mass_mg()"]
+    driver --> hardware["Balance on COM4 / USB / LAN"]
 ```
 
 The instrument server owns the real driver object. Proxy clients only send method names and arguments to the server.

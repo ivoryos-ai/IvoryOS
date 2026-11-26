@@ -108,7 +108,7 @@ The pencil opens the running table. Rows that have not started yet can still be 
 
 ```{image} ../_static/screenshots/execute-edit-running.png
 :alt: The Current Run dialog, listing each row of the table with its status
-:width: 848px
+:width: 1401px
 ```
 
 1. Each row's status: **done**, **running** or **pending**. Finished rows are locked.
@@ -125,7 +125,7 @@ name and adds the new run to the queue:
 
 ```{image} ../_static/screenshots/execute-queue-name.png
 :alt: The System Busy dialog asking for a name for the queued run
-:width: 620px
+:width: 1026px
 ```
 
 1. A name for the queued run, to tell it apart in the queue and on the **Data** page.
@@ -135,7 +135,7 @@ The **Queue** tab in the monitor lists the runs waiting their turn:
 
 ```{image} ../_static/screenshots/execute-queue.png
 :alt: The Queue tab with one waiting run
-:width: 684px
+:width: 693px
 ```
 
 1. The queued run: its name, how many rows it has, and who submitted it.

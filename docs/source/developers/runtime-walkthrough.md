@@ -4,26 +4,14 @@ This page follows the main path from a platform script to a completed workflow r
 
 ## Startup path
 
-```text
-User platform script
-        |
-        v
-ivoryos.run(__name__)
-        |
-        v
-create_app(...)
-        |
-        v
-register Flask routes, SocketIO, database, auth
-        |
-        v
-inspect active Python module
-        |
-        v
-store deck and interface schema in global_state
-        |
-        v
-start SocketIO Flask server
+```mermaid
+flowchart TD
+    script["User platform script"] --> run["ivoryos.run(#95;#95;name#95;#95;)"]
+    run --> app["create_app(...)"]
+    app --> register["register Flask routes, SocketIO, database, auth"]
+    register --> inspect["inspect active Python module"]
+    inspect --> store["store deck and interface schema in global_state"]
+    store --> serve["start SocketIO Flask server"]
 ```
 
 `ivoryos.run(...)` lives in `ivoryos/server.py`. It creates the Flask app, imports workflow templates, loads plugins, registers loggers and notification handlers, configures optimizers, and starts the server.
@@ -37,20 +25,12 @@ When `module` is provided, IvoryOS starts from the active Python module:
 
 ## Interface generation
 
-```text
-Python function or method
-        |
-        v
-inspect.Signature
-        |
-        v
-argument types, defaults, docstring, return annotation
-        |
-        v
-dynamic WTForms fields
-        |
-        v
-direct-control form and workflow action form
+```mermaid
+flowchart TD
+    method["Python function or method"] --> signature["inspect.Signature"]
+    signature --> details["argument types, defaults, docstring, return annotation"]
+    details --> fields["dynamic WTForms fields"]
+    fields --> forms["direct-control form and workflow action form"]
 ```
 
 Key files:
@@ -64,20 +44,12 @@ Return annotations matter. Scalar returns show one save field. Fixed-length tupl
 
 ## Workflow design path
 
-```text
-Design UI
-   |
-   v
-design routes
-   |
-   v
-Script model + ScriptEditor
-   |
-   v
-workflow JSON in database
-   |
-   v
-generated workflow Python script
+```mermaid
+flowchart TD
+    ui["Design UI"] --> routes["design routes"]
+    routes --> model["Script model + ScriptEditor"]
+    model --> json["workflow JSON in database"]
+    json --> python["generated workflow Python script"]
 ```
 
 Key files:
@@ -91,26 +63,14 @@ Workflows are stored as structured data with three phases: `prep`, `script`, and
 
 ## Execution path
 
-```text
-Execute UI
-   |
-   v
-execute routes
-   |
-   v
-ScriptRunner queue
-   |
-   v
-prep phase
-   |
-   v
-script phase repeated by run mode
-   |
-   v
-cleanup phase
-   |
-   v
-WorkflowRun, WorkflowPhase, WorkflowStep records
+```mermaid
+flowchart TD
+    ui["Execute UI"] --> routes["execute routes"]
+    routes --> queue["ScriptRunner queue"]
+    queue --> prep["prep phase"]
+    prep --> main["script phase repeated by run mode"]
+    main --> cleanup["cleanup phase"]
+    cleanup --> records["WorkflowRun, WorkflowPhase, WorkflowStep records"]
 ```
 
 Key files:
@@ -126,23 +86,13 @@ Only one workflow task runs at a time through the shared runner lock. Queue beha
 
 ## Direct-control path
 
-```text
-Devices UI or generated proxy
-        |
-        v
-POST /ivoryos/instruments/<instrument>
-        |
-        v
-control route resolves object and method
-        |
-        v
-argument conversion
-        |
-        v
-method call on live deck object
-        |
-        v
-SingleStep record and JSON response
+```mermaid
+flowchart TD
+    caller["Devices UI or generated proxy"] --> post["POST /ivoryos/instruments/#lt;instrument#gt;"]
+    post --> resolve["control route resolves object and method"]
+    resolve --> convert["argument conversion"]
+    convert --> invoke["method call on live deck object"]
+    invoke --> record["SingleStep record and JSON response"]
 ```
 
 Key files:

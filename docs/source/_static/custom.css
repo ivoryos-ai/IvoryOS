@@ -195,6 +195,50 @@ body,
     box-shadow: 0 10px 28px rgba(31, 41, 51, 0.12);
 }
 
+/* Embedded videos. An iframe has no size of its own, so `height: auto` alone leaves it 150px
+   tall and YouTube falls back to its mini player; the aspect ratio gives it a real height. */
+.rst-content iframe {
+    display: block;
+    width: 100%;
+    max-width: 720px;
+    aspect-ratio: 16 / 9;
+    margin: 0 0 24px;
+}
+
+/* Flow charts (```mermaid blocks, see conf.py). The extension stretches every diagram to the
+   full page width; keep the size mermaid drew it at, and only shrink it to fit. */
+.rst-content pre.mermaid {
+    margin: 0 0 24px;
+    padding: 0;
+    overflow-x: auto;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.rst-content pre.mermaid > svg {
+    display: block;
+    width: auto;
+    height: auto;
+}
+
+.rst-content pre.mermaid .node rect {
+    rx: 6px;
+    ry: 6px;
+}
+
+/* Until mermaid.js has drawn it, the block holds the diagram's source. Keep that out of sight
+   while the page loads, and show it only if the script never arrives. */
+.rst-content pre.mermaid:not([data-processed]) {
+    opacity: 0;
+    animation: ivory-diagram-source 0s 4s forwards;
+}
+
+@keyframes ivory-diagram-source {
+    to {
+        opacity: 1;
+    }
+}
+
 .rst-content .admonition,
 .rst-content .note {
     border: 1px solid var(--ivory-line);

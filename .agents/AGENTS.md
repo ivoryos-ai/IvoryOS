@@ -227,7 +227,9 @@ Key events received from the client:
 The user docs (`docs/source/users/`) use annotated screenshots in
 `docs/source/_static/screenshots/`. They are **generated**, not taken by hand, by
 `docs/screenshots/capture_screenshots.py`, which starts the abstract SDL example, drives the
-UI with Playwright, and draws numbered markers on the controls each docs page describes.
+UI with Playwright, and labels the controls each docs page describes: the page is dimmed,
+each control gets a soft orange outline, and a numbered card names it, linked to it by a
+curved arrow, or by a straight line ending in a dot where there is little room.
 There is no CI check for this: keeping the pictures current is part of making a UI change.
 
 - After changing anything under `ivoryos/templates/` or `ivoryos/static/` that alters what a
@@ -244,10 +246,24 @@ There is no CI check for this: keeping the pictures current is part of making a 
 - Every PNG changes on each run (fonts and anti-aliasing differ between machines), so a
   full `git diff` of the folder is expected; commit all of them, not a hand-picked subset.
 - If a control the script targets was renamed, moved or removed, the script fails with
-  `marker N target is not visible`. Fix the selector in the script, then update the
-  numbered list under that image in the matching docs page so markers and text agree.
+  `label N target is not visible`. Fix the selector in the script, then update the
+  numbered list under that image in the matching docs page so labels and text agree.
 - Each shot's `name` is the PNG file name and is referenced from one docs page. Adding a
-  marker means adding a list item under that image too.
+  label (a `Note`) means adding a list item under that image too. A card's title names the
+  control and its optional second line gives a short hint; a simple control (a button, a
+  search box) gets the title alone, and the list under the image holds the full explanation.
+- A shot of a dialog or side panel passes `modal=`: the page behind is not dimmed again (the
+  dialog's own backdrop does that), the cards go outside the dialog, and the crop shows the
+  whole dialog, so none of its content is hidden or cut off.
+- The script prints `card N covers the part labelled M`, `cards N and M overlap` or
+  `card N covers part of the dialog` when a card lands on something it should not. Move it
+  with the note's `side`, `gap`, `dx` and `dy`, and re-run until nothing is printed. Look at
+  the links too: a link that crosses text can be led round it (`to`, `frm`, `bend`), and
+  `link="dot"` or `link="dash"` straightens a curve that looks wrong.
+- A cropped shot is widened automatically where its crop would cut off a card, and the script
+  prints `crop widened to WxH`. When it does, set that image's `:width:` in the docs page to
+  the new width (half the PNG's pixel width), and look at the PNG: every number in the list
+  under it must be in the picture, pointing at the thing it describes.
 - The Bayesian Optimization screenshot needs an optimizer extra installed
   (`pip install -e ".[optimizer-ax]"`) and is skipped otherwise; that is fine for unrelated
   UI changes.

@@ -6,23 +6,13 @@ IvoryOS is organized around a small core package plus route, runtime, parser, se
 
 IvoryOS separates platform integration from workflow execution:
 
-```text
-Python device drivers / APIs
-            |
-            v
-     Dynamic introspection
-            |
-            v
-    Auto-generated UI layer
-            |
-            v
- Visual workflow composition
-            |
-            v
-      Workflow runtime
-            |
-            v
- Execution records, logs, and optimizer feedback
+```mermaid
+flowchart TD
+    drivers["Python device drivers / APIs"] --> introspection["Dynamic introspection"]
+    introspection --> ui["Auto-generated UI layer"]
+    ui --> design["Visual workflow composition"]
+    design --> runtime["Workflow runtime"]
+    runtime --> records["Execution records, logs, and optimizer feedback"]
 ```
 
 The codebase should preserve that boundary. Integrators expose normal Python APIs; IvoryOS generates controls and workflow actions; the runtime executes the selected workflow and records what happened.

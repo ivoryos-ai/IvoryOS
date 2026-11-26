@@ -146,6 +146,7 @@ release = __version__
 
 extensions = [
     'myst_parser',
+    'sphinxcontrib.mermaid',
     'sphinx.ext.duration',
     'sphinx.ext.doctest',
     'sphinx.ext.autodoc',
@@ -165,6 +166,36 @@ myst_enable_extensions = [
 ]
 # lets pages link to a heading on another page, e.g. [Safety limits](instruments.md#safety-limits)
 myst_heading_anchors = 3
+# a ```mermaid block is a diagram, written the same way GitLab renders it in the repository
+myst_fence_as_directive = ['mermaid']
+
+# -- Diagrams
+# Flow charts are ```mermaid blocks, drawn in the browser by mermaid.js in the docs' own colours
+# (see custom.css). The docs have no dark mode, so the "dark" theme is the same light one;
+# without it a reader whose system is in dark mode gets dark diagrams on a white page.
+mermaid_light_theme = 'base'
+mermaid_dark_theme = 'base'
+mermaid_height = 'auto'  # the diagram's own height, not a fixed 500px
+mermaid_fullscreen = False
+mermaid_init_config = {
+    'startOnLoad': False,
+    'themeVariables': {
+        'fontFamily': 'Lato, proxima-nova, "Helvetica Neue", Arial, sans-serif',
+        'fontSize': '15px',
+        'primaryColor': '#f1f8f8',
+        'primaryBorderColor': '#2f7f82',
+        'primaryTextColor': '#1f2933',
+        'lineColor': '#5f6c7b',
+        'edgeLabelBackground': '#ffffff',
+    },
+    'flowchart': {
+        'useMaxWidth': False,  # natural size; custom.css shrinks it on a narrow screen
+        'nodeSpacing': 36,
+        'rankSpacing': 34,
+        'padding': 14,
+        'wrappingWidth': 420,  # keep a step on one line; the default wraps at 200px
+    },
+}
 
 exclude_patterns = [
     '_build',

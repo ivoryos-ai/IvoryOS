@@ -104,7 +104,7 @@ it never brings back a different workflow.
 
 ```{image} ../_static/screenshots/design-history.png
 :alt: The history menu open, listing each change to the workflow
-:width: 408px
+:width: 720px
 ```
 
 1. **Undo** and **Redo**.
