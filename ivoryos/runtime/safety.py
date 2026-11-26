@@ -343,29 +343,35 @@ class Guard:
     def __init__(self, path=None):
         self.path = path
         self._lock = threading.Lock()
-        self._mtime = None
+        self._stamp = None
         self.config = empty_config()
         self.load_error = None
 
     def configure(self, path):
         with self._lock:
             self.path = path
-            self._mtime = None
+            self._stamp = None
             self.config, self.load_error = empty_config(), None
 
     def _refresh(self):
-        """Read the file again if it changed, so a hand edit applies without a restart."""
+        """Read the file again if it changed, so a hand edit applies without a restart.
+
+        A change is told by the file's modified time together with its size and file id: two
+        saves within one tick of the file system clock share a modified time, and an editor
+        that saves by replacing the file gives it a new id.
+        """
         if not self.path:
             return
         try:
-            mtime = os.path.getmtime(self.path)
+            info = os.stat(self.path)
+            stamp = (info.st_ino, info.st_mtime_ns, info.st_size)
         except OSError:
-            mtime = None
+            stamp = None
         with self._lock:
-            if mtime == self._mtime:
+            if stamp == self._stamp:
                 return
-            self._mtime = mtime
-            if mtime is None:
+            self._stamp = stamp
+            if stamp is None:
                 self.config, self.load_error = empty_config(), None
                 return
             try:
@@ -545,7 +551,7 @@ class Guard:
             json.dump(config, file, indent=2, ensure_ascii=False)
         os.replace(temporary, self.path)
         with self._lock:
-            self._mtime = None  # read it again on the next check
+            self._stamp = None  # read it again on the next check
         return []
 
 
