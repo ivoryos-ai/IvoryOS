@@ -41,7 +41,8 @@ doc = [
     "sphinx<8",
     "myst-parser>=2,<4",
     "sphinx-rtd-theme",
-    "sphinxcontrib-httpdomain"
+    "sphinxcontrib-httpdomain",
+    "sphinxcontrib-mermaid>=2,<3"
 ]
 dev = ["pytest"]
 # docs/release_videos/record.py; also run `playwright install chromium`. Kokoro speaks the

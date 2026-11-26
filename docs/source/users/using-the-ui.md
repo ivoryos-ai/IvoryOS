@@ -17,7 +17,7 @@ python community/examples/abstract_sdl_example/abstract_sdl.py
 Then open <http://127.0.0.1:8000/ivoryos> and sign in. A new installation has an `admin`
 account with the password `admin`; change it from the account menu.
 
-Numbered markers on a screenshot point at what the list below it describes.
+The numbered labels on a screenshot point at what the list below it describes.
 
 ## The main screen
 

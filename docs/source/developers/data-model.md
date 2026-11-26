@@ -70,12 +70,10 @@ Important fields:
 
 Workflow run records live in `ivoryos/models/workflow.py`.
 
-```text
-WorkflowRun
-    |
-    +-- WorkflowPhase
-            |
-            +-- WorkflowStep
+```mermaid
+flowchart LR
+    run["WorkflowRun"] -->|has many| phase["WorkflowPhase"]
+    phase -->|has many| step["WorkflowStep"]
 ```
 
 `WorkflowRun` represents one submitted run. It stores the run name, platform, timing, data path, repeat mode, and related phases. `submitted_by` is the username of whoever submitted it, from the browser or a client, passed from the run routes through the queued task, so it is right however long the run waits in the queue. Runs from before it was kept have none. Existing databases get the column when the app starts, like the run's other newer columns (`reset_old_schema` in `ivoryos/app.py`).

@@ -9,7 +9,7 @@ per public method, one field per argument. When the platform code changes, the p
 ## The page at a glance
 
 ```{image} ../_static/screenshots/instruments-overview.png
-:alt: Instruments page for the sdl module of the abstract SDL example, with numbered markers
+:alt: Instruments page for the sdl module of the abstract SDL example, with numbered labels
 :width: 1440px
 ```
 
@@ -54,7 +54,7 @@ Click the shield at the end of a numeric or text field to set its limit:
 
 ```{image} ../_static/screenshots/instruments-safety-limit.png
 :alt: The safety limit editor open under the temp field of the equilibrate method
-:width: 618px
+:width: 854px
 ```
 
 1. The shield of the field you are limiting.
@@ -91,7 +91,7 @@ enough: chaining two calls, checking an attribute, or printing a value.
 
 ```{image} ../_static/screenshots/instruments-console.png
 :alt: The interactive console with two lines of Python and their output
-:width: 447px
+:width: 750px
 ```
 
 1. Python code. Every instrument is available by its name, here `sdl`, `balance` and `pump`.

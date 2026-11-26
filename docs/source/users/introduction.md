@@ -10,23 +10,13 @@ The Python modules can be hardware APIs, high-level functions, or experiment wor
 
 IvoryOS is built around a simple flow:
 
-```text
-Python device drivers / APIs
-            |
-            v
-     Dynamic introspection
-            |
-            v
-    Auto-generated UI controls
-            |
-            v
- Visual workflow composition
-            |
-            v
-      Workflow runtime
-            |
-            v
- Execution records, logs, and optimization
+```mermaid
+flowchart TD
+    drivers["Python device drivers / APIs"] --> introspection["Dynamic introspection"]
+    introspection --> controls["Auto-generated UI controls"]
+    controls --> design["Visual workflow composition"]
+    design --> runtime["Workflow runtime"]
+    runtime --> records["Execution records, logs, and optimization"]
 ```
 
 For users, this means the UI is generated from the Python platform that is currently running. New device methods and workflow functions can appear as controls and workflow actions without a hand-written frontend page.

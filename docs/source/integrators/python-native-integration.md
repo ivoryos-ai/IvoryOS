@@ -56,17 +56,11 @@ Private helper methods should be prefixed with `_` so they are treated as implem
 
 Keep hardware implementation inside driver or wrapper classes. Keep workflow composition in IvoryOS.
 
-```text
-Vendor SDK / serial driver
-          |
-          v
-Small Python wrapper class
-          |
-          v
-IvoryOS-generated controls and workflow actions
-          |
-          v
-Reusable visual workflows
+```mermaid
+flowchart TD
+    sdk["Vendor SDK / serial driver"] --> wrapper["Small Python wrapper class"]
+    wrapper --> controls["IvoryOS-generated controls and workflow actions"]
+    controls --> workflows["Reusable visual workflows"]
 ```
 
 This separation lets automation engineers update hardware code without asking users to rebuild workflows from scratch.

@@ -97,7 +97,7 @@ Both stop buttons ask how the run should wind down:
 
 ```{image} ../_static/screenshots/execute-stop.png
 :alt: The Stop Workflow dialog with its two checkboxes
-:width: 548px
+:width: 883px
 ```
 
 1. **Proceed to cleanup steps**: tick it to run the **Clean up** phase before stopping, for

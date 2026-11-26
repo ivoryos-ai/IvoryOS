@@ -30,7 +30,7 @@ reason. A banner at the top counts how many steps are affected.
 
 ```{image} ../_static/screenshots/design-step-warnings.png
 :alt: A workflow with two red and one yellow step marker, and the banner above them
-:width: 1190px
+:width: 1274px
 ```
 
 1. A red icon: this step will stop the run.
